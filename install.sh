@@ -217,20 +217,25 @@ ac_loads_installed()
 install_battery()
 {
 
-echo "Installing Battery Time Estimator"
-
-
 if battery_installed; then
 
-    echo "Battery mod already installed"
-    return
+    echo
+    echo "⚠ Battery mod backup detected!"
+    echo "A previous modification exists."
+    echo "Restore the original before installing again."
+    echo
+
+    return 1
 
 fi
 
 
+echo "Installing Battery Time Estimator"
+
 backup_file "$BATTERY" "battery"
 
-
+...
+}
 cd "$WIDGETS"
 
 
@@ -601,21 +606,24 @@ restore_file "$BATTERY" "battery"
 install_sensors()
 {
 
-echo "Installing Live Sensor Status Bar"
-
-
 if sensors_installed; then
 
-    echo "Sensor mod already installed"
-    return
+    echo
+    echo "⚠ Sensor mod backup detected!"
+    echo "A previous modification exists."
+    echo "Restore the original before installing again."
+    echo
+
+    return 1
 
 fi
 
 
+echo "Installing Live Sensor Status Bar"
+
 backup_file "$STATUSBAR" "sensors"
 
 install_sensor_icons
-
 
 cd "$COMPONENTS"
 
@@ -1169,7 +1177,21 @@ remove_sensor_icons
 install_ac()
 {
 
+if ac_input_installed || ac_loads_installed; then
+
+    echo
+    echo "⚠ AC Widget mod backup detected!"
+    echo "A previous modification exists."
+    echo "Restore the original before installing again."
+    echo
+
+    return 1
+
+fi
+
+
 echo "Installing AC Widget Enhancements"
+
 
 
 # ----------------------------
