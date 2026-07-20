@@ -89,9 +89,72 @@ install_battery()
 
     backup_file "$BATTERY"
 
-    #
-    # PATCH GOES HERE
-    #
+    cd "$(dirname "$BATTERY")"
+
+    patch --forward "BatteryWidget.qml" <<'PATCH'
+--- BatteryWidget.qml
++++ BatteryWidget.qml
+@@ -40,7 +40,8 @@
+ 
+ 	readonly property var batteryData: Global.system.battery
++	readonly property real batterySoc: batteryData.stateOfCharge || 0
+
+
+@@ -75,6 +76,11 @@
+ 	VeQuickItem {
+ 		id: remoteGeneratorSelected
+
+ 		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Ac/State/RemoteGeneratorSelected" : ""
+ 	}
+
++	VeQuickItem {
++		id: batteryCapacity
++		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/Capacity"
++	}
+
+
+@@ -220,9 +226,46 @@
+ 			Label {
+-				text: Global.system.battery.timeToGo == 0 ? "" : Utils.secondsToString(Global.system.battery.timeToGo)
+-				visible: Global.system.battery.timeToGo
++				text: {
++					const capAh = batteryCapacity.value;
++					const current = batteryData.current;
++					const soc = batteryData.stateOfCharge;
++
++					// Charging
++					if (current > 0.1) {
++						const remainingAh = capAh * (100 - soc) / 100;
++						const hours = remainingAh / current;
++
++						return "Time to full " + Utils.secondsToString(hours * 3600);
++					}
++
++					// Discharging
++					if (current < -0.1) {
++
++						if (soc <= 25)
++							return "WARNING";
++
++						const usableAh = capAh * (soc - 20) / 100;
++						const hours = usableAh / Math.abs(current);
++
++						return "Remaining " + Utils.secondsToString(hours * 3600);
++					}
++
++					return "";
++				}
++
++				visible: true
++
+ 				color: Theme.color_font_primary
+ 				width: parent.width
+ 				elide: Text.ElideRight
+ 				font.pixelSize: Theme.font_overviewPage_battery_timeToGo_pixelSize
+ 			}
+PATCH
+
+    echo "Battery Time installed"
 
     NEED_RESTART=1
 }
