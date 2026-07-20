@@ -182,25 +182,25 @@ restore_file()
 
 battery_installed()
 {
-    grep -q "VENUS_MOD_BATTERY_TIME" "$BATTERY" 2>/dev/null
+    ls "$BATTERY.bak-battery-"* >/dev/null 2>&1
 }
 
 
 sensors_installed()
 {
-    grep -q "VENUS_MOD_SENSOR_STATUS" "$STATUSBAR" 2>/dev/null
+     ls "$STATUSBAR.bak-sensors-"* >/dev/null 2>&1
 }
 
 
 ac_input_installed()
 {
-    grep -q "VENUS_MOD_AC_INPUT" "$ACINPUT" 2>/dev/null
+    ls "$ACINPUT.bak-ac-"* >/dev/null 2>&1
 }
 
 
 ac_loads_installed()
 {
-    grep -q "VENUS_MOD_AC_LOADS" "$ACLOADS" 2>/dev/null
+    ls "$ACLOADS.bak-ac-"* >/dev/null 2>&1
 }
 
 
