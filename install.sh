@@ -164,6 +164,11 @@ restore_file()
         echo "Restored:"
         echo "$FILE"
 
+        echo "Removing backup:"
+        echo "$BACKUP"
+
+        rm -f "$BACKUP"
+
         NEED_RESTART=1
 
     else
