@@ -114,8 +114,7 @@ SSH into your GX device.
 Download the installer:
 
 ```bash
-wget https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPOSITORY>/main/install.sh \
--O /data/gui-mod-manager.sh
+wget https://raw.githubusercontent.com/Sarah-1331/Gui_v2-Mod-Manager/main/install.sh \-O /data/gui-mod-manager.sh
 ```
 
 Make it executable:
