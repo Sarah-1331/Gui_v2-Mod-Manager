@@ -229,76 +229,349 @@ backup_file "$BATTERY" "battery"
 cd "$WIDGETS"
 
 
-patch -N --forward BatteryWidget.qml <<'PATCH'
+cat > "$BATTERY" <<'EOF'
+/*
+** Copyright (C) 2023 Victron Energy B.V.
+** See LICENSE.txt for license information.
+*/
 
---- BatteryWidget.qml
-+++ BatteryWidget.qml
+import QtQuick
+import Victron.VenusOS
+import QtQuick.Controls.impl as CP
 
-@@ -40,7 +40,8 @@
+OverviewWidget {
+	id: root
 
- 	readonly property var batteryData: Global.system.battery
-+	// VENUS_MOD_BATTERY_TIME
-+	readonly property real batterySoc: batteryData.stateOfCharge || 0
+	readonly property bool preferRenewable: preferRenewableEnergy.valid
+	readonly property bool preferRenewableOverride: preferRenewableEnergy.value === 0 || preferRenewableEnergy.value === 2
+	readonly property bool preferRenewableOverrideGenset: remoteGeneratorSelected.value === 1 || Global.acInputs.activeInSource === VenusOS.AcInputs_InputSource_Generator
 
+	onClicked: {
+		// If com.victronenergy.system/Batteries has only one battery, then show the device
+		// settings for that battery; otherwise, show the full battery list using BatteryListPage.
+		if (batteries.value.length === 1) {
+			const batteryUids = batteries.value.map((info) => BackendConnection.serviceUidFromName(info.id, info.instance))
 
-@@ -75,6 +76,11 @@
+			// Show the vebus page if the battery is from a vebus service.
+			if (BackendConnection.serviceTypeFromUid(batteryUids[0]) === "vebus") {
+				Global.pageManager.pushPage("/pages/vebusdevice/PageVeBus.qml", {
+					"bindPrefix": batteryUids[0],
+				})
+			} else {
+				// Assume this is a battery service
+				Global.pageManager.pushPage("/pages/settings/devicelist/battery/PageBattery.qml", {
+					"bindPrefix": batteryUids[0]
+				})
+			}
+		} else {
+			Global.pageManager.pushPage("/pages/battery/BatteryListPage.qml")
+		}
+	}
 
- 	VeQuickItem {
- 		id: remoteGeneratorSelected
+	readonly property var batteryData: Global.system.battery
+	readonly property real batterySoc: batteryData.stateOfCharge || 0
 
- 		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Ac/State/RemoteGeneratorSelected" : ""
- 	}
+	readonly property int _normalizedStateOfCharge: Math.round(batteryData.stateOfCharge || 0)
+	readonly property bool _animationReady: animationEnabled && !isNaN(batteryData.stateOfCharge)
 
-+	VeQuickItem {
-+		id: batteryCapacity
-+		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/Capacity"
-+	}
+	// Calculate whether voltage, current and power quantities fit on the footer together, if not use smaller font.
+	// Discharging battery has negative amperes and its not unusual for the watts to be in the 1k+ range.
+	readonly property bool _useSmallFont: !quantityLabelFits(batteryVoltageDisplay) || !quantityLabelFits(batteryPowerDisplay)
 
+	function quantityLabelFits(label) {
+		return root.width/2 - 2*Theme.geometry_overviewPage_widget_content_horizontalMargin
+			> quantityLabelWidth(batteryCurrentDisplay.valueText, batteryCurrentDisplay.unitText)/2
+			+ quantityLabelWidth(label.valueText, label.unitText)
+	}
 
-@@ -220,9 +226,46 @@
+	function quantityLabelWidth(valueText, unitText){
+		const valueTextRect = quantityLabelFont.tightBoundingRect(valueText)
+		return quantityLabelFont.font, (valueTextRect.x + valueTextRect.width
+										+ Theme.geometry_quantityLabel_spacing
+										+ quantityLabelFont.advanceWidth(unitText))
+	}
 
- 			Label {
+	FontMetrics {
+		id: quantityLabelFont
+		font.pixelSize: Theme.font_size_body2
+		font.family: Global.quantityFontFamily
+	}
 
--				text: Global.system.battery.timeToGo == 0 ? "" : Utils.secondsToString(Global.system.battery.timeToGo)
--				visible: Global.system.battery.timeToGo
+	VeQuickItem {
+		id: batteries
+		uid: Global.system.serviceUid + "/Batteries"
+	}
 
-+				text: {
-+
-+					const capAh = batteryCapacity.value;
-+					const current = batteryData.current;
-+					const soc = batteryData.stateOfCharge;
-+
-+					if (current > 0.1) {
-+
-+						if (soc >= 99)
-+							return "Finishing charge";
-+
-+						const remainingAh = capAh * (100 - soc) / 100;
-+						const hours = remainingAh / current;
-+
-+						return "Time to full " + Utils.secondsToString(hours * 3600);
-+					}
-+
-+					if (current < -0.1) {
-+
-+						if (soc <= 25)
-+							return "WARNING";
-+
-+						const usableAh = capAh * (soc - 20) / 100;
-+						const hours = usableAh / Math.abs(current);
-+
-+						return "Remaining " + Utils.secondsToString(hours * 3600);
-+					}
-+
-+					return "";
-+				}
-+
-+				visible: true
+	VeQuickItem {
+		id: preferRenewableEnergy
 
- 				color: Theme.color_font_primary
+		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Dc/0/PreferRenewableEnergy" : ""
+	}
 
-PATCH
+	VeQuickItem {
+		id: remoteGeneratorSelected
 
+		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Ac/State/RemoteGeneratorSelected" : ""
+	}
+	
+	VeQuickItem {
+		id: batteryCapacity
+
+		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/Capacity"
+	}
+	
+	VeQuickItem { 
+		id: batteryInstalledCapacity 
+		
+		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/InstalledCapacity" 
+	}
+
+	title: CommonWords.battery
+	icon.source: batteryData.icon
+	type: VenusOS.OverviewWidget_Type_Battery
+	enabled: batteries.valid
+
+	quantityLabel.value: batteryData.stateOfCharge
+	quantityLabel.unit: VenusOS.Units_Percentage
+	quantityLabel.unitColor: Theme.color_overviewPage_widget_battery_font_secondary
+
+	color: "transparent"
+
+	BarGauge {
+		id: animationRect
+		z: -1
+
+		anchors {
+			fill: parent
+			margins: root.border.width
+		}
+
+		animationEnabled: root.animationEnabled // Note: don't use _animationReady here.
+		value: _normalizedStateOfCharge/100
+		backgroundColor: Theme.color_overviewPage_widget_background
+		foregroundColor: Theme.color_overviewPage_widget_battery_background
+		radius: Theme.geometry_overviewPage_widget_battery_background_radius
+
+		Item {
+			id: animationClip
+
+			width: parent.width
+			height: parent.height * (animationRect.value)
+			anchors.bottom: parent.bottom
+			visible: batteryData.mode === VenusOS.Battery_Mode_Charging && root._animationReady
+			clip: true
+			z: 6 // greater than the explicit z-order specified in BarGauge.
+
+			SequentialAnimation {
+				property bool startAnimation: root._animationReady
+				onStartAnimationChanged: if (startAnimation) start()
+				onStopped: if (startAnimation) start()
+
+				YAnimator {
+					target: gradient
+					from: animationClip.height
+					to: -gradient.height
+					duration: Theme.animation_overviewPage_widget_battery_animation_duration
+					easing.type: Easing.OutQuad
+				}
+
+				PauseAnimation {
+					duration: Theme.animation_overviewPage_widget_battery_animation_pause_duration
+				}
+			}
+
+			Rectangle {
+				id: gradient
+				width: parent.width
+				height: Theme.geometry_overviewPage_widget_battery_gradient_height
+				gradient: Gradient {
+					GradientStop {
+						position: 0.0
+						color: Qt.rgba(1,1,1,0.3)
+					}
+					GradientStop {
+						position: 0.3
+						color: Qt.rgba(1,1,1,0.15)
+					}
+					GradientStop {
+						position: 1.0
+						color: Qt.rgba(1,1,1,0.0)
+					}
+				}
+			}
+		}
+	}
+
+	QuantityLabel {
+		id: batteryTempDisplay
+
+		anchors {
+			top: parent.top
+			topMargin: root.verticalMargin
+			right: parent.right
+			rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+		}
+
+		value: batteryData.temperature
+		unit: Global.systemSettings.temperatureUnit
+		unitColor: Theme.color_overviewPage_widget_battery_font_secondary
+		font.pixelSize: Theme.font_size_body2
+		alignment: Qt.AlignRight
+		visible: !isNaN(batteryData.temperature)
+	}
+
+	extraContentChildren: [
+		Column {
+			anchors {
+				top: parent.top
+				left: parent.left
+				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+				right: parent.right
+				rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+			}
+			Label {
+				text: VenusOS.battery_modeToText(batteryData.mode)
+				font.pixelSize: Theme.font_size_body1
+				width: parent.width
+				elide: Text.ElideRight
+				color: Theme.color_overviewPage_widget_battery_font_secondary
+			}
+			
+			Label {
+				text: {
+					const remainingAh = batteryCapacity.value;
+					const fullAh = batteryInstalledCapacity.value;
+					const reserveAh = fullAh * 0.20;   // calculate runtime down to 20%
+
+					const current = batteryData.current;
+
+					// Charging
+					if (current > 0.1) {
+
+						// Last 1% is finishing/balancing stage, no useful time estimate
+						if (remainingAh >= fullAh * 0.99)
+							return "Finishing charge";
+
+						const chargeAh = fullAh - remainingAh;
+						const hours = chargeAh / current;
+						const seconds = hours * 3600;
+
+						return "Time to full " + Utils.secondsToString(seconds);
+					}
+
+					// Discharging
+					if (current < -0.1) {
+
+						// Warning below 25%
+						if (remainingAh <= fullAh * 0.25)
+							return "WARNING";
+
+						// Calculate remaining time down to 20%
+						const usableAh = remainingAh - reserveAh;
+						const hours = usableAh / Math.abs(current);
+						const seconds = hours * 3600;
+
+						return "Remaining " + Utils.secondsToString(seconds);
+					}
+
+					return "";
+				}
+
+				visible: true
+
+				color: batteryCapacity.value <= batteryInstalledCapacity.value * 0.30
+						? "red"
+						: batteryCapacity.value <= batteryInstalledCapacity.value * 0.35
+							? "orange"
+							: Theme.color_font_primary
+
+				width: parent.width
+				elide: Text.ElideRight
+				font.pixelSize: Theme.font_overviewPage_battery_timeToGo_pixelSize
+			}	
+		},
+
+		CP.ColorImage {
+			anchors {
+				left: parent.left
+				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+				bottom: batteryVoltageDisplay.top
+				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
+			}
+			fillMode: Image.PreserveAspectFit
+			color: Theme.color_font_primary
+			visible: root.preferRenewableOverride
+			source: root.preferRenewableOverrideGenset
+					? "qrc:/images/icon_charging_generator.svg"
+					: Global.acInputs.activeInSource === VenusOS.AcInputs_InputSource_Shore
+					  ? "qrc:/images/icon_charging_shore.svg"
+					  : "qrc:/images/icon_charging_grid.svg"
+		},
+
+		QuantityLabel {
+			id: batteryVoltageDisplay
+
+			anchors {
+				left: parent.left
+				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+				bottom: parent.bottom
+				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
+			}
+
+			value: batteryData.voltage
+			unit: VenusOS.Units_Volt_DC
+			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
+			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
+			alignment: Qt.AlignLeft
+		},
+
+		QuantityLabel {
+			id: batteryCurrentDisplay
+
+			anchors {
+				horizontalCenter: parent.horizontalCenter
+				bottom: parent.bottom
+				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
+			}
+			value: batteryData.current
+			unit: VenusOS.Units_Amp
+			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
+			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
+		},
+
+		CP.ColorImage {
+			anchors {
+				bottom: batteryPowerDisplay.top
+				bottomMargin: Theme.geometry_overviewPage_batterywidget_renewable_icon_bottom_margin
+				right: parent.right
+				rightMargin: Theme.geometry_overviewPage_batterywidget_renewable_icon_right_margin
+			}
+
+			fillMode: Image.PreserveAspectFit
+			color: Theme.color_font_primary
+			visible: root.preferRenewable
+			source: "qrc:/images/icon_charging_renewables.svg"
+		},
+
+		QuantityLabel {
+			id: batteryPowerDisplay
+
+			anchors {
+				right: parent.right
+				rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+				bottom: parent.bottom
+				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
+			}
+			value: batteryData.power
+			unit: VenusOS.Units_Watt
+			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
+			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
+			alignment: Qt.AlignRight
+		}
+	]
+}
+
+EOF
 
 NEED_RESTART=1
 
@@ -341,155 +614,528 @@ install_sensor_icons
 
 cd "$COMPONENTS"
 
+cat > "$STATUSBAR" <<'EOF'
+/*
+** Copyright (C) 2025 Victron Energy B.V.
+** See LICENSE.txt for license information.
+*/
 
-patch -N --forward StatusBar.qml <<'PATCH'
+import QtQuick
+import QtQuick.Controls.impl as CP
+import Victron.VenusOS
 
---- StatusBar.qml
-+++ StatusBar.qml
+FocusScope {
+	id: root
 
-@@ -185,6 +185,150 @@
- 	Label {
- 		id: clockLabel
- 		anchors.centerIn: parent
- 		font.pixelSize: 22
- 		visible: !breadcrumbs.visible
- 		text: ClockTime.currentTime
- 	}
+	required property PageStack pageStack
+	property string title
+	property alias backgroundColor: backgroundRect.color
 
-+	// VENUS_MOD_SENSOR_STATUS
-+
-+	// === Custom Live Sensor Row with Icons (Final) ===
-+
-+	Row {
-+		id: liveSensorRow
-+		spacing: 16
-+		anchors.verticalCenter: parent.verticalCenter
-+		anchors.right: clockLabel.left
-+		anchors.rightMargin: 20
-+		visible: true
-+		opacity: !breadcrumbs.visible ? 1 : 0
-+
-+		Behavior on opacity {
-+			enabled: root.animationEnabled
-+			OpacityAnimator {
-+				duration: Theme.animation_page_idleOpacity_duration
-+			}
-+		}
-+
-+		VeQuickItem { id: internalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_3/Temperature" }
-+		VeQuickItem { id: externalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_2/Temperature" }
-+		VeQuickItem { id: fridgeTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_1/Temperature" }
-+		VeQuickItem { id: hotWaterTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_0/Temperature" }
-+		VeQuickItem { id: waterLevel; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Level" }
-+		VeQuickItem { id: waterCapacity; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Capacity" }
-+		VeQuickItem { id: themeMode; uid: "dbus/com.victronenergy.settings/Settings/Gui/ColorScheme" }
-+
-+		Row {
-+			spacing: 4
-+
-+			Image {
-+				width: 20
-+				height: 20
-+				fillMode: Image.PreserveAspectFit
-+				source: themeMode.value === 1
-+					? "file:///data/custom-icons/tempB.svg"
-+					: "file:///data/custom-icons/temp.svg"
-+			}
-+
-+			Label {
-+				text: internalTemp.valid ? internalTemp.value.toFixed(1) + "°C" : "--.-°C"
-+				font.bold: true
-+				font.pixelSize: 18
-+			}
-+		}
-+
-+		Row {
-+			spacing: 4
-+
-+			Image {
-+				width: 20
-+				height: 20
-+				fillMode: Image.PreserveAspectFit
-+				source: themeMode.value === 1
-+					? "file:///data/custom-icons/externalB.svg"
-+					: "file:///data/custom-icons/external.svg"
-+			}
-+
-+			Label {
-+				text: externalTemp.valid ? externalTemp.value.toFixed(1) + "°C" : "--.-°C"
-+				font.bold: true
-+				font.pixelSize: 18
-+			}
-+		}
-+
-+		Row {
-+			spacing: 4
-+
-+			Image {
-+				width: 20
-+				height: 20
-+				fillMode: Image.PreserveAspectFit
-+				source: themeMode.value === 1
-+					? "file:///data/custom-icons/snowflakeB.svg"
-+					: "file:///data/custom-icons/snowflake.svg"
-+			}
-+
-+			Label {
-+				text: fridgeTemp.valid ? fridgeTemp.value.toFixed(1) + "°C" : "--.-°C"
-+				font.bold: true
-+				font.pixelSize: 18
-+			}
-+		}
-+	}
-+
-+	Row {
-+		id: water
-+		spacing: 4
-+		anchors.verticalCenter: parent.verticalCenter
-+		anchors.left: alarmButton.visible && alarmButton.enabled
-+				? alarmButton.right
-+				: notificationButton.visible
-+					? notificationButton.right
-+					: connectivityRow.right
-+		anchors.leftMargin: 20
-+		visible: true
-+		opacity: !breadcrumbs.visible ? 1 : 0
-+
-+		Behavior on opacity {
-+			enabled: root.animationEnabled
-+			OpacityAnimator {
-+				duration: Theme.animation_page_idleOpacity_duration
-+			}
-+		}
-+
-+		Image {
-+			width: 20
-+			height: 20
-+			fillMode: Image.PreserveAspectFit
-+			source: themeMode.value === 1
-+				? "file:///data/custom-icons/waterB.svg"
-+				: "file:///data/custom-icons/water.svg"
-+		}
-+
-+		Label {
-+			text:
-+				(waterLevel.valid
-+					? (waterCapacity.valid
-+						? ((waterLevel.value / 100.0) * waterCapacity.value * 1000).toFixed(0) + "L"
-+						: waterLevel.value.toFixed(0) + "%")
-+					: "")
-+				+ (hotWaterTemp.valid
-+					? (waterLevel.valid ? "  " : "") + hotWaterTemp.value.toFixed(1) + "°C"
-+					: "")
-+
-+			font.bold: true
-+			font.pixelSize: 18
-+		}
-+	}
-+
-+	// === End Custom Live Sensor Row ===
+	property int leftButton: VenusOS.StatusBar_LeftButton_None
+	property int rightButton: VenusOS.StatusBar_RightButton_None
+	readonly property bool notificationButtonsEnabled: Global.mainView.currentPage && !!Global.mainView.currentPage.url && Global.mainView.currentPage.url.endsWith("NotificationsPage.qml")
+	readonly property bool notificationButtonVisible: alarmButton.enabled || alarmButton.animating
 
-PATCH
+	property bool animationEnabled
+
+	signal leftButtonClicked()
+	signal rightButtonClicked()
+	signal auxButtonClicked()
+	// PageStack.get(...) returns an Item, so the arg for 'popToPage' needs to be 'Item'. If we make it a 'Page', it works fine on the desktop,
+	// but shows an unusual failure on the device. There is an error message about "passing incompatible arguments to signals is not supported",
+	// and the page stack pops 1 too many pages.
+	signal popToPage(toPage: Item)
+
+	width: parent.width
+	height: Theme.geometry_statusBar_height
+	opacity: 0.0
+
+	Component.onCompleted: if (!animationEnabled) { root.opacity = 1.0 }
+
+	Rectangle {
+		id: backgroundRect
+		anchors.fill: parent
+	}
+
+	SequentialAnimation {
+		running: !Global.splashScreenVisible && animationEnabled
+
+		PauseAnimation {
+			duration: Theme.animation_statusBar_initialize_delayedStart_duration
+		}
+		OpacityAnimator {
+			target: root
+			from: 0.0
+			to: 1.0
+			duration: Theme.animation_statusBar_initialize_fade_duration
+		}
+	}
+
+	component StatusBarButton : Button {
+		radius: 0
+		defaultBackgroundWidth: Theme.geometry_statusBar_button_height
+		defaultBackgroundHeight: Theme.geometry_statusBar_button_height
+		backgroundColor: "transparent"  // don't show background when disabled
+		display: Button.IconOnly
+		color: Theme.color_ok
+		opacity: enabled && Global.pageManager?.interactivity === VenusOS.PageManager_InteractionMode_Interactive ? 1.0 : 0.0
+		onActiveFocusChanged: {
+			if (activeFocus) {
+				breadcrumbs.updateFocusEdgeHint()
+			}
+		}
+
+		// For convenience, bind the paddings to the offsets that are used to expand the clickable
+		// area. If the button only contains an icon, no additional padding is required as the icon
+		// fits within the default defaultBackgroundWidth/Height.
+		leftPadding: leftInset
+		rightPadding: rightInset
+		topPadding: topInset
+		bottomPadding: bottomInset
+
+		Behavior on opacity {
+			enabled: root.animationEnabled
+			OpacityAnimator {
+				duration: Theme.animation_page_idleOpacity_duration
+			}
+		}
+	}
+
+	component NotificationButton : Button {
+		readonly property bool animating: animator.running
+
+		opacity: enabled ? 1 : 0
+		font.family: Global.fontFamily
+		font.pixelSize: Theme.font_size_caption
+		Behavior on opacity {
+			enabled: root.animationEnabled
+			OpacityAnimator {
+				id: animator
+				duration: Theme.animation_toastNotification_fade_duration
+			}
+		}
+	}
+
+	StatusBarButton {
+		id: leftButton
+
+		// Expand clickable area on left and bottom edges.
+		leftInset: Theme.geometry_statusBar_horizontalMargin
+		bottomInset: Theme.geometry_statusBar_spacing
+
+		icon.source: root.leftButton === VenusOS.StatusBar_LeftButton_ControlsInactive ? "qrc:/images/icon_controls_off_32.svg"
+			: root.leftButton === VenusOS.StatusBar_LeftButton_ControlsActive ? "qrc:/images/icon_controls_on_32.svg"
+			: root.leftButton === VenusOS.StatusBar_LeftButton_Back ? "qrc:/images/icon_back_32.svg"
+			: ""
+		enabled: root.leftButton !== VenusOS.StatusBar_LeftButton_None
+		KeyNavigation.right: auxButton
+
+		onClicked: root.leftButtonClicked()
+	}
+
+	StatusBarButton {
+		id: auxButton
+
+		readonly property bool auxCardsOpened: Global.mainView.cardsActive
+				&& root.leftButton !== VenusOS.StatusBar_LeftButton_ControlsActive
+
+		// Expand clickable area on right and bottom edges, and on left if leftButton is hidden.
+		anchors {
+			left: leftButton.right
+			leftMargin: -leftInset
+		}
+		leftInset: leftButton.enabled ? 0 : Theme.geometry_statusBar_spacing
+		rightInset: Theme.geometry_statusBar_spacing
+		bottomInset: Theme.geometry_statusBar_spacing
+
+		visible: (!root.pageStack.opened && Global.switches.groups.count > 0)
+				|| auxCardsOpened // allow cards to be closed if all switches are disconnected while opened
+		icon.source: root.leftButton === VenusOS.StatusBar_LeftButton_ControlsActive ? ""
+				: auxCardsOpened ? "qrc:/images/icon_smartswitch_on_32.svg"
+				: "qrc:/images/icon_smartswitch_off_32.svg"
+		enabled: root.leftButton !== VenusOS.StatusBar_LeftButton_ControlsActive
+		KeyNavigation.right: breadcrumbs
+
+		onClicked: root.auxButtonClicked()
+	}
+
+	Breadcrumbs {
+		id: breadcrumbs
+
+		property int focusEdgeHint: Qt.LeftEdge
+
+		function updateFocusEdgeHint() {
+			// When breadcrumbs list is focused: if focus is arriving from the left side, focus the
+			// the left-most breadcrumb, or if from the right side, focus the right-most breadcrumb.
+			if (leftButton.activeFocus || auxButton.activeFocus) {
+				focusEdgeHint = Qt.LeftEdge
+			} else if (rightButton.activeFocus || sleepButton.activeFocus) {
+				focusEdgeHint = Qt.RightEdge
+			} else {
+				// Focus is coming from the main list view below, so do not change the current index
+				focusEdgeHint = -1
+			}
+		}
+
+		anchors {
+			top: parent.top
+			topMargin: Theme.geometry_settings_breadcrumb_topMargin
+			left: leftButton.right
+			leftMargin: Theme.geometry_settings_breadcrumb_horizontalMargin
+			right: rightButtonRow.left
+		}
+		height: Theme.geometry_settings_breadcrumb_height
+		model: root.pageStack.opened ? root.pageStack.depth + 1 : null // '+ 1' because we insert a dummy breadcrumb with the text "Settings"
+		visible: count >= 2
+		enabled: visible // don't receive focus when invisble
+		focus: false // don't give status bar initial focus to the breadcrumbs
+
+		getText: function(index) {
+			return index === 0
+					? Global.mainView.navBar.activeButtonText // eg: "Settings"
+					: pageStack.get(index - 1).title // eg: "Device list"
+		}
+
+		onClicked: function(index) {
+			const isTopBreadcrumb = index === breadcrumbs.count - 1
+			const isBottomBreadcrumb = index === 0
+
+			if (isBottomBreadcrumb) { // the bottom breadcrumb is a special case, we inserted a dummy breadcrumb with the text "Settings" which doesn't relate to anything in the pageStack
+				Global.pageManager.popAllPages()
+				return
+			}
+
+			if (isTopBreadcrumb) { // ignore clicks on the top of the breadcrumb trail. We don't need to navigate there, we are already there...
+				return
+			}
+
+			root.popToPage(pageStack.get(index - 1)) // subtract 1, because we inserted a dummy "Settings" breadcrumb at the beginning
+		}
+
+		onActiveFocusChanged: {
+			if (activeFocus && focusEdgeHint >= 0) {
+				// Focus the first (left-most) or last (right-most) breadcrumb, depending the side
+				// that the key navigation is arriving from.
+				currentIndex = focusEdgeHint === Qt.LeftEdge ? 0 : count - 1
+				focusEdgeHint = -1
+			}
+		}
+
+		KeyNavigation.right: notificationButton
+
+		Connections {
+			target: root.pageStack
+			enabled: root.pageStack.opened && Global.keyNavigationEnabled
+			function onDepthChanged() {
+				// When pages are pushed/popped, reset the focus to be on the last breadcrumb.
+				breadcrumbs.currentIndex = breadcrumbs.count - 1
+			}
+		}
+	}
+
+	Label {
+		id: clockLabel
+		anchors.centerIn: parent
+		font.pixelSize: 22
+		visible: !breadcrumbs.visible
+		text: ClockTime.currentTime
+	}
+
+// === Custom Live Sensor Row with Icons (Final) ===
+
+Row {
+    id: liveSensorRow
+    spacing: 16
+    anchors.verticalCenter: parent.verticalCenter
+    anchors.right: clockLabel.left
+    anchors.rightMargin: 20
+// Always participate in layout, but fade in/out
+    visible: true
+    opacity: !breadcrumbs.visible ? 1 : 0
+
+    Behavior on opacity {
+        enabled: root.animationEnabled
+        OpacityAnimator {
+            duration: Theme.animation_page_idleOpacity_duration
+        }
+    }
+
+
+    // — D-Bus Bindings —
+    VeQuickItem { id: internalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_3/Temperature" }
+    VeQuickItem { id: externalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_2/Temperature" }
+    VeQuickItem { id: fridgeTemp;   uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_1/Temperature" }
+    VeQuickItem { id: hotWaterTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_0/Temperature" }
+    VeQuickItem { id: waterLevel;   uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Level" }
+    VeQuickItem { id: waterCapacity; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Capacity" }
+    VeQuickItem { id: themeMode;     uid: "dbus/com.victronenergy.settings/Settings/Gui/ColorScheme" }
+
+    // — Internal Temp —
+    Row {
+        spacing: 4
+        Image {
+            width: 20; height: 20
+            fillMode: Image.PreserveAspectFit
+            source: themeMode.value === 1
+                ? "file:///data/custom-icons/tempB.svg"
+                : "file:///data/custom-icons/temp.svg"
+        }
+        Label {
+            text: internalTemp.valid ? internalTemp.value.toFixed(1) + "°C" : "--.-°C"
+            font.bold: true; font.pixelSize: 18
+        }
+    }
+
+    // — External Temp —
+    Row {
+        spacing: 4
+        Image {
+            width: 20; height: 20
+            fillMode: Image.PreserveAspectFit
+            source: themeMode.value === 1
+                ? "file:///data/custom-icons/externalB.svg"
+                : "file:///data/custom-icons/external.svg"
+        }
+        Label {
+            text: externalTemp.valid ? externalTemp.value.toFixed(1) + "°C" : "--.-°C"
+            font.bold: true; font.pixelSize: 18
+        }
+    }
+
+    // — Fridge Temp —
+    Row {
+        spacing: 4
+        Image {
+            width: 20; height: 20
+            fillMode: Image.PreserveAspectFit
+            source: themeMode.value === 1
+                ? "file:///data/custom-icons/snowflakeB.svg"
+                : "file:///data/custom-icons/snowflake.svg"
+        }
+        Label {
+            text: fridgeTemp.valid ? fridgeTemp.value.toFixed(1) + "°C" : "--.-°C"
+            font.bold: true; font.pixelSize: 18
+        }
+    }
+}
+
+Row {
+    id: water
+    spacing: 4
+    anchors.verticalCenter: parent.verticalCenter
+    anchors.left: alarmButton.visible && alarmButton.enabled
+                    ? alarmButton.right
+                  : notificationButton.visible
+                    ? notificationButton.right
+                  : connectivityRow.right
+    anchors.leftMargin: 20
+    
+    
+    
+// Always in layout, but fade based on breadcrumbs
+    visible: true
+    opacity: !breadcrumbs.visible ? 1 : 0
+
+    Behavior on opacity {
+        enabled: root.animationEnabled
+        OpacityAnimator {
+            duration: Theme.animation_page_idleOpacity_duration
+        }
+    }
+
+    // — Water Tank Level —
+    Row {
+        spacing: 4
+        Image {
+            width: 20; height: 20
+            fillMode: Image.PreserveAspectFit
+            source: themeMode.value === 1
+                ? "file:///data/custom-icons/waterB.svg"
+                : "file:///data/custom-icons/water.svg"
+        }
+Label {
+    text:
+        (waterLevel.valid
+            ? (waterCapacity.valid
+                ? ((waterLevel.value / 100.0) * waterCapacity.value * 1000).toFixed(0) + "L"
+                : waterLevel.value.toFixed(0) + "%")
+            : "")
+        + (hotWaterTemp.valid
+            ? (waterLevel.valid ? "  " : "") + hotWaterTemp.value.toFixed(1) + "°C"
+            : "")
+    font.bold: true
+    font.pixelSize: 18
+}
+    }
+}
+
+
+// === End Custom Live Sensor Row ===
+	Row {
+		id: connectivityRow
+
+		anchors {
+			left: clockLabel.right
+			leftMargin: Theme.geometry_statusBar_spacing
+			verticalCenter: parent.verticalCenter
+		}
+		visible: !breadcrumbs.visible
+		spacing: Theme.geometry_statusBar_spacing
+
+		CP.IconImage {
+			anchors.verticalCenter: parent.verticalCenter
+			color: Theme.color_font_primary
+			source: {
+				if (!signalStrength.valid) {
+					return ""
+				} else if (signalStrength.value > 75) {
+					return "qrc:/images/icon_WiFi_4_32.svg"
+				} else if (signalStrength.value > 50) {
+					return "qrc:/images/icon_WiFi_3_32.svg"
+				} else if (signalStrength.value > 25) {
+					return "qrc:/images/icon_WiFi_2_32.svg"
+				} else if (signalStrength.value > 0) {
+					return "qrc:/images/icon_WiFi_1_32.svg"
+				} else {
+					return "qrc:/images/icon_WiFi_noconnection_32.svg"
+				}
+			}
+
+			VeQuickItem {
+				id: signalStrength
+
+				uid: Global.venusPlatform.serviceUid +  "/Network/Wifi/SignalStrength"
+			}
+		}
+
+		GsmStatusIcon {
+			height: Theme.geometry_status_bar_gsmModem_icon_height
+			anchors.verticalCenter: parent.verticalCenter
+		}
+	}
+
+	StatusBarButton {
+		id: notificationButton
+
+		anchors {
+			left: connectivityRow.right
+			leftMargin: Theme.geometry_statusBar_spacing
+		}
+		// Expand clickable area on right and bottom edges.
+		rightInset: Theme.geometry_statusBar_spacing / 2
+		bottomInset: Theme.geometry_statusBar_spacing
+
+		// The notificationButton should always be shown, even when the page is not interactive
+		opacity: 1
+		visible: !breadcrumbs.visible && (Global.notifications?.statusBarNotificationIconVisible ?? false)
+
+		color: Global.notifications?.statusBarNotificationIconPriority === VenusOS.Notification_Alarm
+			   ? Theme.color_critical
+			   : Global.notifications?.statusBarNotificationIconPriority === VenusOS.Notification_Warning
+				 ? Theme.color_warning :
+				   Global.notifications?.statusBarNotificationIconPriority === VenusOS.Notification_Info ? Theme.color_ok : "transparent"
+		icon.source: Global.notifications?.statusBarNotificationIconPriority === VenusOS.Notification_Info ?
+						 "qrc:/images/icon_info_32.svg" : "qrc:/images/icon_warning_32.svg"
+		onClicked: Global.mainView.goToNotificationsPage()
+		KeyNavigation.right: alarmButton
+	}
+
+	NotificationButton {
+		id: alarmButton
+
+		anchors {
+			left: notificationButton.right
+			verticalCenter: parent.verticalCenter
+		}
+		// Expand clickable area on horizontal and bottom edges.
+		leftInset: Theme.geometry_statusBar_spacing / 2
+		leftPadding: leftInset + Theme.geometry_silenceAlarmButton_horizontalPadding
+		rightInset: Theme.geometry_statusBar_spacing / 2
+		rightPadding: rightInset + Theme.geometry_silenceAlarmButton_horizontalPadding
+		topInset: Theme.geometry_statusBar_spacing
+		bottomInset: Theme.geometry_statusBar_spacing
+
+		enabled: notificationButtonsEnabled && (Global.notifications?.silenceAlarmVisible ?? false)
+		flat: false
+		backgroundColor: down ? Theme.color_critical : Theme.color_critical_background
+		borderWidth: 0
+		// ensure highlight border can be seen against critical backgroundColor
+		KeyNavigationHighlight.margins: -(4 * Theme.geometry_button_border_width)
+		icon.source: "qrc:/images/icon_alarm_snooze_24.svg"
+		text: CommonWords.silence_alarm
+
+		onClicked: NotificationModel.acknowledgeAll()
+	}
+
+	Row {
+		id: rightButtonRow
+
+		height: parent.height
+		anchors.right: parent.right
+
+		StatusBarButton {
+			id: rightButton
+
+			// Expand clickable area on left and bottom edges.
+			leftInset: Theme.geometry_statusBar_spacing
+			bottomInset: Theme.geometry_statusBar_spacing
+
+			enabled: root.rightButton != VenusOS.StatusBar_RightButton_None
+			visible: enabled
+			icon.source: root.rightButton === VenusOS.StatusBar_RightButton_SidePanelActive
+						 ? "qrc:/images/icon_sidepanel_on_32.svg"
+						 : root.rightButton === VenusOS.StatusBar_RightButton_SidePanelInactive
+						   ? "qrc:/images/icon_sidepanel_off_32.svg"
+						   : root.rightButton === VenusOS.StatusBar_RightButton_Add
+							 ? "qrc:/images/icon_plus.svg"
+							 : root.rightButton === VenusOS.StatusBar_RightButton_Refresh
+							   ? "qrc:/images/icon_refresh_32.svg"
+							   : ""
+			KeyNavigation.left: alarmButton
+			KeyNavigation.right: sleepButton
+
+			onClicked: root.rightButtonClicked()
+		}
+
+		StatusBarButton {
+			id: sleepButton
+
+			// Expand clickable area on right and bottom edges, and on left edge if right button is
+			// hidden. This is the right-most button in the row, so on the right edge, use
+			// Theme.geometry_statusBar_horizontalMargin instead of Theme.geometry_statusBar_spacing.
+			leftInset: rightButton.visible ? 0 : Theme.geometry_statusBar_spacing
+			rightInset: Theme.geometry_statusBar_horizontalMargin
+			bottomInset: Theme.geometry_statusBar_spacing
+
+			icon.source: "qrc:/images/icon_screen_sleep_32.svg"
+			visible: enabled
+			enabled: ScreenBlanker.supported
+					&& ScreenBlanker.enabled
+					&& Global.pageManager?.interactivity === VenusOS.PageManager_InteractionMode_Interactive
+			onClicked: ScreenBlanker.setDisplayOff()
+		}
+	}
+
+	// The status bar should never become the focused item; if it does, it means there was no
+	// previously focused button in the status bar, or the last focused button is now disabled and
+	// not focusable. So, find the first available button and focus that instead.
+	Connections {
+		target: Global.main
+		enabled: Global.keyNavigationEnabled
+		function onActiveFocusItemChanged() {
+			if (Global.main.activeFocusItem === root) {
+				for (const button of [leftButton, auxButton, breadcrumbs, notificationButton, alarmButton, rightButton, sleepButton]) {
+					if (button.enabled) {
+						button.focus = true
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+EOF
 
 
 NEED_RESTART=1
