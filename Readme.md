@@ -72,3 +72,43 @@ Download the installer:
 
 ```bash
 wget https://raw.githubusercontent.com/YOUR-REPO/main/install.sh -O /data/gui-mod-manager.sh
+
+
+
+
+
+
+🔁 After Venus OS Updates
+
+A Venus OS update may replace GUI files.
+
+If your modifications disappear:
+
+1. Run the Mod Manager again.
+2. Select reinstall.
+
+The installer will:
+
+🔍 Check installed mods
+💾 Create fresh backups
+🔧 Reapply modifications
+
+⸻
+
+⚠️ Disclaimer
+
+These modifications are community-developed enhancements for Venus OS GUI v2.
+
+Always keep a backup of your system before applying modifications.
+
+Tested on Venus OS GUI v2.
+
+⸻
+
+📜 Credits
+
+Created for the Venus OS community.
+
+Built using the open modification capabilities provided by Victron Venus OS GUI v2.
+
+Enjoy your customised Venus OS experience! ⚡🔋🌞
