@@ -221,9 +221,58 @@ install_ac()
     backup_file "$ACWIDGET"
 
 
+--- AcLoadsWidget.qml
++++ AcLoadsWidget.qml
+@@ -20,6 +20,47 @@
+ 	type: VenusOS.OverviewWidget_Type_AcLoads
+ 	quantityLabel.dataObject: root.measurements
+ 	phaseCount: root.measurements.phases.count
 
---- AcWidget.qml
-+++ AcWidget.qml
++	//start edit//
++
++	VeQuickItem {
++		id: acVoltage
++		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
++	}
++
++	VeQuickItem {
++		id: acCurrent
++		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/I"
++	}
++
++	VeQuickItem {
++		id: acFrequency
++		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
++	}
++
++	Label {
++		text: (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
++		      (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
++		      (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
++
++		font.pixelSize: 18
++		color: Theme.color_font_primary
++
++		anchors {
++			bottom: parent.bottom
++			horizontalCenter: parent.horizontalCenter
++			bottomMargin: Theme.geometry_baseline_spacing
++		}
++
++		visible: root.size >= VenusOS.OverviewWidget_Size_L &&
++		         acVoltage.valid &&
++		         acVoltage.value >= 10
++	}
++
++	//end edit//
++
+ 	extraContentLoader.sourceComponent: ThreePhaseDisplay {
+
+
+
+
+--- AcInputWidget.qml
++++ AcInputWidget.qml
 @@ -25,6 +25,44 @@
  	extraContentLoader.sourceComponent: ThreePhaseDisplay {
  		width: parent.width
