@@ -48,6 +48,26 @@ echo " Version $MOD_VERSION"
 echo "======================================"
 echo
 
+# ============================================================
+# Verify files exist
+# ============================================================
+
+for FILE in "$STATUSBAR" "$BATTERY" "$ACINPUT" "$ACLOADS"
+do
+    if [ ! -f "$FILE" ]; then
+        echo "❌ Missing file:"
+        echo "$FILE"
+        exit 1
+    fi
+done
+
+echo "✅ GUI files located"
+
+
+
+
+
+
 
 # ============================================================
 # Backup function
