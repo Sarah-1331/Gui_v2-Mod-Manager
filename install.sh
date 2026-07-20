@@ -187,25 +187,25 @@ restore_file()
 
 battery_installed()
 {
-    ls "$BATTERY.bak-battery-"* >/dev/null 2>&1
+    compgen -G "$BATTERY.bak-battery-*" > /dev/null
 }
 
 
 sensors_installed()
 {
-     ls "$STATUSBAR.bak-sensors-"* >/dev/null 2>&1
+    compgen -G "$STATUSBAR.bak-sensors-*" > /dev/null
 }
 
 
 ac_input_installed()
 {
-    ls "$ACINPUT.bak-ac-"* >/dev/null 2>&1
+    compgen -G "$ACINPUT.bak-ac-*" > /dev/null
 }
 
 
 ac_loads_installed()
 {
-    ls "$ACLOADS.bak-ac-"* >/dev/null 2>&1
+    compgen -G "$ACLOADS.bak-ac-*" > /dev/null
 }
 
 
