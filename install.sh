@@ -587,7 +587,6 @@ NEED_RESTART=1
 
 echo "Battery installed"
 
-}
 
 
 
