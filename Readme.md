@@ -1,193 +1,272 @@
 # 🚀 Venus OS GUI v2 Mod Manager
 
-A collection of custom modifications for **Victron Venus OS GUI v2**.
+A modular enhancement manager for **Victron Energy Venus OS GUI v2**.
 
-This installer provides a simple way to install, remove, and manage GUI enhancements while keeping the original Venus OS files safely backed up.
+The Mod Manager allows you to install, remove and manage custom GUI enhancements without permanently modifying your original Venus OS installation.
 
-Compatible with Venus OS systems running **GUI v2**.
+It automatically:
+
+- Detects Overlay-FS installations
+- Creates timestamped backups
+- Installs only the selected modifications
+- Allows each modification to be removed independently
+- Restarts the GUI automatically when required
 
 ---
 
-# ✨ Features
+# ✨ Current Modules
 
 ## 🔋 Battery Time Estimator
 
-Adds additional battery information to the standard GUI v2 battery widget.
+Enhances the standard Battery Widget with intelligent runtime estimation.
 
-Features:
+### Features
 
-✅ Displays **Time to Full** while charging  
-✅ Displays **Remaining Time** while discharging  
-✅ Calculates remaining runtime down to **20% battery capacity**  
-✅ Shows **WARNING** below 25% remaining capacity  
-✅ Colour warnings:
-- 🟠 Amber below 35%
-- 🔴 Red below 30%
+- ✅ Time to Full while charging
+- ✅ Remaining Runtime while discharging
+- ✅ Runtime calculated to 20% State of Charge
+- ✅ Low battery warning below 25%
+- ✅ Uses live BMS values
+- ✅ No background services
+- ✅ No external scripts
 
-Uses the battery information already provided by the BMS:
+Uses native Venus OS D-Bus battery information including:
 
-- Current capacity (Ah)
-- Installed capacity (Ah)
-- Battery current
-
-No additional services or drivers required.
+- Battery Current
+- State of Charge
+- Installed Battery Capacity
 
 ---
 
 ## 🌡️ Live Sensor Status Bar
 
-Adds additional live information to the Venus OS status bar.
+Adds live environmental information directly into the GUI v2 status bar.
 
-Features:
+### Features
 
-✅ Internal temperature display  
-✅ External temperature display  
-✅ Fridge temperature display  
-✅ Water tank level  
-✅ Hot water temperature  
-✅ Custom icons  
-✅ Automatic dark/light theme icons
+- ✅ Internal temperature
+- ✅ External temperature
+- ✅ Fridge temperature
+- ✅ Water tank level
+- ✅ Hot water temperature
+- ✅ Automatic light/dark theme icons
+- ✅ Native Venus OS D-Bus integration
 
-Uses native Venus OS D-Bus values.
+The installer automatically installs all required SVG icons into:
+
+```
+/data/custom-icons
+```
+
+These icons are automatically removed when the module is uninstalled.
+
+No manual installation is required.
 
 ---
 
 ## ⚡ AC Widget Enhancements
 
-Adds additional AC information to the GUI widgets.
+Adds additional live AC information to the standard GUI widgets.
 
-Features:
+### Features
 
-✅ Additional AC monitoring information  
-✅ Uses native Venus OS data sources  
-✅ No additional background services
+- ✅ Live Voltage
+- ✅ Live Current
+- ✅ Live Frequency
+- ✅ Available on AC Input Widget
+- ✅ Available on AC Loads Widget
+- ✅ Uses native Venus OS D-Bus values
+
+---
+
+# 📂 Supported Install Locations
+
+The installer automatically detects the correct GUI location.
+
+Priority order:
+
+### Overlay Filesystem
+
+```
+/data/apps/overlay-fs/data/gui-v2/upper
+```
+
+Recommended for persistent modifications.
+
+---
+
+### Standard Venus OS
+
+```
+/opt/victronenergy/gui-v2
+```
+
+Used automatically when Overlay-FS is unavailable.
+
+No configuration is required.
 
 ---
 
 # 🛠 Installation
 
-SSH into your Venus OS device.
+SSH into your GX device.
 
 Download the installer:
 
 ```bash
-wget https://raw.githubusercontent.com/YOUR-REPO/main/install.sh -O /data/gui-mod-manager.sh
-
+wget https://raw.githubusercontent.com/<YOUR_USERNAME>/<YOUR_REPOSITORY>/main/install.sh \
+-O /data/gui-mod-manager.sh
+```
 
 Make it executable:
 
+```bash
 chmod +x /data/gui-mod-manager.sh
+```
 
-Run:
+Run the installer:
 
-bash /data/gui-mod-manager.sh
-📋 Installer Menu
+```bash
+/data/gui-mod-manager.sh
+```
 
-The installer will show:
+---
 
-================================
- Venus OS GUI v2 Mod Manager
-================================
+# 📋 Installer Menu
 
-Installed Mods:
-
-🔋 Battery Time Estimator     ❌ Not Installed
-🌡️ Live Sensors               ✅ Installed
-⚡ AC Widget                  ❌ Not Installed
-
-
-Options:
-
-1) Battery Time
-2) Live Sensors
-3) AC Widget
-4) Install All Mods
-5) Restore All Mods
-6) Exit
-
-Simply select the required option.
-
-💾 Backup System
-
-Before changing any Venus OS files, the installer creates a timestamped backup.
+The installer automatically detects installed modules.
 
 Example:
 
-BatteryWidget.qml.bak-20260720-183000
-StatusBar.qml.bak-20260720-183005
+```
+======================================
+ Venus OS GUI v2 Mod Manager
+ Version 1.1
+======================================
 
-Backups are stored next to the original files.
+Installed Mods
 
-Your original Venus OS files are never overwritten without a backup.
+1) Battery Time Estimator        ✅ Installed
+2) Live Sensor Status Bar        ❌ Not Installed
+3) AC Widget Enhancements        ✅ Installed
 
-🔄 Restore
+--------------------------------------
 
-To restore a modification:
+4) Install All
+5) Remove All
+6) Exit
+```
 
-Run the installer again and select:
+Selecting an installed module removes it.
 
-Restore Mod
+Selecting a missing module installs it.
 
-The installer will:
+---
 
-✅ Locate the latest backup
-✅ Restore the original QML file
-✅ Restart the GUI
+# 💾 Automatic Backup System
 
-🖥 Overlay-fs Support
+Before any modification is applied, a timestamped backup is created.
 
-The installer automatically detects Venus OS overlay-fs.
+Example:
 
-If overlay-fs is available:
+```
+BatteryWidget.qml.bak-battery-20260720-183000
 
-/data/apps/overlay-fs/data/gui-v2/upper
+StatusBar.qml.bak-sensors-20260720-183010
 
-the modification is installed there.
+AcInputWidget.qml.bak-ac-20260720-183020
+```
 
-This prevents changes being lost during normal operation and keeps the factory system files untouched.
+Backups are stored alongside the original files.
 
-If overlay-fs is not available, the installer safely modifies the normal GUI location:
+Your original GUI files are never modified without first creating a backup.
 
-/opt/victronenergy/gui-v2
-🔁 After Venus OS Updates
+---
 
-A Venus OS update may replace GUI files.
+# 🔄 Removing Mods
 
-If your modifications disappear:
+Each module can be removed independently.
 
-Run the Mod Manager again.
-Select reinstall.
+Removing a module will:
 
-The installer will:
+- Restore the latest backup
+- Remove any associated resources (such as SVG icons)
+- Restart the GUI
 
-🔍 Check installed mods
-💾 Create fresh backups
-🔧 Reapply modifications
+No manual cleanup is required.
 
-⚠️ Disclaimer
+---
 
-These modifications are community-developed enhancements for Venus OS GUI v2.
+# 🔁 Venus OS Updates
 
-Always keep a backup of your system before applying modifications.
+After a Venus OS update, modified GUI files may be replaced.
 
-Tested on Venus OS GUI v2.
+If this happens simply run:
 
-📜 Credits
+```
+/data/gui-mod-manager.sh
+```
 
-Created for the Venus OS community.
+and reinstall the desired modules.
 
-Built using the open modification capabilities provided by Victron Venus OS GUI v2.
+The installer will automatically create new backups before applying any modifications.
 
-Enjoy your customised Venus OS experience! ⚡🔋🌞
+---
 
-
-I would also add a small screenshot section later:
-
-```markdown
 # 📸 Screenshots
 
-Coming soon...
+Coming soon.
 
-Built using the open modification capabilities provided by Victron Venus OS GUI v2.
+- Battery Widget
+- Live Sensor Status Bar
+- AC Widget Enhancements
 
-Enjoy your customised Venus OS experience! ⚡🔋🌞
+---
+
+# 🛣 Roadmap
+
+Future modules planned include:
+
+- GPS information
+- Weather integration
+- Generator enhancements
+- Battery statistics
+- System diagnostics
+- Custom dashboard widgets
+- Additional status bar modules
+
+Suggestions are welcome.
+
+---
+
+# ⚠ Disclaimer
+
+This project is an independent community enhancement for Victron Energy Venus OS GUI v2.
+
+It is not affiliated with or endorsed by Victron Energy.
+
+Always ensure your system is backed up before making modifications.
+
+Use at your own risk.
+
+---
+
+# 🤝 Contributing
+
+Bug reports, feature requests and pull requests are welcome.
+
+If you create your own GUI modules, feel free to contribute them to the project.
+
+---
+
+# 📜 Credits
+
+Created for the Victron Energy community.
+
+Built using the open modification capabilities intentionally provided by the Venus OS GUI v2 architecture.
+
+Special thanks to Victron Energy for making GUI v2 modifiable through Overlay-FS and QML.
+
+---
+
+⭐ If you find this project useful, consider giving the repository a star.
