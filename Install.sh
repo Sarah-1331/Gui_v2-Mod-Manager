@@ -186,9 +186,139 @@ install_sensors()
 
     backup_file "$STATUSBAR"
 
-    #
-    # PATCH GOES HERE
-    #
+@@ -185,6 +185,150 @@
+ 	Label {
+ 		id: clockLabel
+ 		anchors.centerIn: parent
+ 		font.pixelSize: 22
+ 		visible: !breadcrumbs.visible
+ 		text: ClockTime.currentTime
+ 	}
++
++// === Custom Live Sensor Row with Icons (Final) ===
++
++	Row {
++		id: liveSensorRow
++		spacing: 16
++		anchors.verticalCenter: parent.verticalCenter
++		anchors.right: clockLabel.left
++		anchors.rightMargin: 20
++		visible: true
++		opacity: !breadcrumbs.visible ? 1 : 0
++
++		Behavior on opacity {
++			enabled: root.animationEnabled
++			OpacityAnimator {
++				duration: Theme.animation_page_idleOpacity_duration
++			}
++		}
++
++		VeQuickItem { id: internalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_3/Temperature" }
++		VeQuickItem { id: externalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_2/Temperature" }
++		VeQuickItem { id: fridgeTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_1/Temperature" }
++		VeQuickItem { id: hotWaterTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_0/Temperature" }
++		VeQuickItem { id: waterLevel; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Level" }
++		VeQuickItem { id: waterCapacity; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Capacity" }
++		VeQuickItem { id: themeMode; uid: "dbus/com.victronenergy.settings/Settings/Gui/ColorScheme" }
++
++		Row {
++			spacing: 4
++			Image {
++				width: 20
++				height: 20
++				fillMode: Image.PreserveAspectFit
++				source: themeMode.value === 1
++					? "file:///data/custom-icons/tempB.svg"
++					: "file:///data/custom-icons/temp.svg"
++			}
++			Label {
++				text: internalTemp.valid ? internalTemp.value.toFixed(1) + "°C" : "--.-°C"
++				font.bold: true
++				font.pixelSize: 18
++			}
++		}
++
++		Row {
++			spacing: 4
++			Image {
++				width: 20
++				height: 20
++				fillMode: Image.PreserveAspectFit
++				source: themeMode.value === 1
++					? "file:///data/custom-icons/externalB.svg"
++					: "file:///data/custom-icons/external.svg"
++			}
++			Label {
++				text: externalTemp.valid ? externalTemp.value.toFixed(1) + "°C" : "--.-°C"
++				font.bold: true
++				font.pixelSize: 18
++			}
++		}
++
++		Row {
++			spacing: 4
++			Image {
++				width: 20
++				height: 20
++				fillMode: Image.PreserveAspectFit
++				source: themeMode.value === 1
++					? "file:///data/custom-icons/snowflakeB.svg"
++					: "file:///data/custom-icons/snowflake.svg"
++			}
++			Label {
++				text: fridgeTemp.valid ? fridgeTemp.value.toFixed(1) + "°C" : "--.-°C"
++				font.bold: true
++				font.pixelSize: 18
++			}
++		}
++	}
++
++	Row {
++		id: water
++		spacing: 4
++		anchors.verticalCenter: parent.verticalCenter
++		anchors.left: alarmButton.visible && alarmButton.enabled
++				? alarmButton.right
++				: notificationButton.visible
++					? notificationButton.right
++					: connectivityRow.right
++		anchors.leftMargin: 20
++		visible: true
++		opacity: !breadcrumbs.visible ? 1 : 0
++
++		Behavior on opacity {
++			enabled: root.animationEnabled
++			OpacityAnimator {
++				duration: Theme.animation_page_idleOpacity_duration
++			}
++		}
++
++		Image {
++			width: 20
++			height: 20
++			fillMode: Image.PreserveAspectFit
++			source: themeMode.value === 1
++				? "file:///data/custom-icons/waterB.svg"
++				: "file:///data/custom-icons/water.svg"
++		}
++
++		Label {
++			text:
++				(waterLevel.valid
++					? (waterCapacity.valid
++						? ((waterLevel.value / 100.0) * waterCapacity.value * 1000).toFixed(0) + "L"
++						: waterLevel.value.toFixed(0) + "%")
++					: "")
++				+ (hotWaterTemp.valid
++					? (waterLevel.valid ? "  " : "") + hotWaterTemp.value.toFixed(1) + "°C"
++					: "")
++			font.bold: true
++			font.pixelSize: 18
++		}
++	}
++
++// === End Custom Live Sensor Row ===
+
 
     NEED_RESTART=1
 }
