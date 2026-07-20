@@ -234,8 +234,6 @@ echo "Installing Battery Time Estimator"
 
 backup_file "$BATTERY" "battery"
 
-...
-}
 cd "$WIDGETS"
 
 
@@ -586,7 +584,7 @@ EOF
 NEED_RESTART=1
 
 echo "Battery installed"
-
+}
 
 
 
