@@ -220,9 +220,61 @@ install_ac()
 
     backup_file "$ACWIDGET"
 
-    #
-    # PATCH GOES HERE
-    #
+
+
+--- AcWidget.qml
++++ AcWidget.qml
+@@ -25,6 +25,44 @@
+ 	extraContentLoader.sourceComponent: ThreePhaseDisplay {
+ 		width: parent.width
+ 		model: root.input.phases
+ 		widgetSize: root.size
+ 		inputMode: true
+ 	}
++
++	//start edit//
++
++	VeQuickItem {
++		id: acCurrent
++		uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
++	}
++
++	VeQuickItem {
++		id: acVoltage
++		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
++	}
++
++	VeQuickItem {
++		id: acFrequency
++		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
++	}
++
++	Item {
++		anchors.fill: parent
++		z: 999
++
++		Label {
++			text:
++				(acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
++				(acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
++				(acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
++
++			font.pixelSize: 16
++			color: Theme.color_font_primary
++
++			anchors {
++				horizontalCenter: parent.horizontalCenter
++				bottom: parent.bottom
++				bottomMargin: Theme.geometry_baseline_spacing
++			}
++
++			visible: root.inputOperational &&
++			         root.input &&
++			         root.input.connected
++		}
++	}
++
++	//end edit//
 
     NEED_RESTART=1
 }
