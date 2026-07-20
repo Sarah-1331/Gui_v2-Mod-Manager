@@ -1182,62 +1182,151 @@ else
 	cd "$WIDGETS"
 
 
-	patch -N --forward AcInputWidget.qml <<'PATCH'
+	cat > "$ACINPUT" <<'EOF'
+/*
+** Copyright (C) 2023 Victron Energy B.V.
+** See LICENSE.txt for license information.
+*/
 
---- AcInputWidget.qml
-+++ AcInputWidget.qml
+import QtQuick
+import Victron.VenusOS
 
-@@ -25,6 +25,47 @@
- 	extraContentLoader.sourceComponent: ThreePhaseDisplay {
- 		width: parent.width
- 		model: root.input.phases
- 		widgetSize: root.size
- 		inputMode: true
- 	}
+AcWidget {
+	id: root
 
-+	// VENUS_MOD_AC_INPUT
-+
-+	VeQuickItem {
-+		id: acCurrent
-+		uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
-+	}
-+
-+	VeQuickItem {
-+		id: acVoltage
-+		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
-+	}
-+
-+	VeQuickItem {
-+		id: acFrequency
-+		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
-+	}
-+
-+	Item {
-+		anchors.fill: parent
-+		z: 999
-+
-+		Label {
-+			text:
-+				(acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
-+				(acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
-+				(acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
-+
-+			font.pixelSize: 16
-+			color: Theme.color_font_primary
-+
-+			anchors {
-+				horizontalCenter: parent.horizontalCenter
-+				bottom: parent.bottom
-+				bottomMargin: Theme.geometry_baseline_spacing
-+			}
-+
-+			visible: root.inputOperational &&
-+			         root.input &&
-+			         root.input.connected
-+		}
-+	}
+	readonly property AcInputSystemInfo inputInfo: input?.inputInfo ?? null
+	property AcInput input
+	readonly property bool inputOperational: input && input.operational
 
-PATCH
+	title: !!inputInfo ? Global.acInputs.sourceToText(inputInfo.source) : ""
+	icon.source: !!inputInfo ? Global.acInputs.sourceIcon(inputInfo.source) : ""
+	rightPadding: sideGaugeLoader.active ? Theme.geometry_overviewPage_widget_sideGauge_margins : 0
+	quantityLabel.sourceType: VenusOS.ElectricalQuantity_Source_AcInputOnly
+	quantityLabel.dataObject: inputOperational ? input : null
+	quantityLabel.leftPadding: acInputDirectionIcon.visible ? (acInputDirectionIcon.width + Theme.geometry_acInputDirectionIcon_rightMargin) : 0
+	phaseCount: inputOperational ? input.phases.count : 0
+	enabled: !!inputInfo
+	extraContentLoader.sourceComponent: ThreePhaseDisplay {
+		width: parent.width
+		model: root.input.phases
+		widgetSize: root.size
+		inputMode: true
+	}
+
+// AC INPUT CURRENT (real system value)
+VeQuickItem {
+    id: acCurrent
+    uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
+}
+
+// VOLTAGE fallback (VE.Bus inverter output)
+VeQuickItem {
+    id: acVoltage
+    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
+}
+
+// FREQUENCY (VE.Bus output)
+VeQuickItem {
+    id: acFrequency
+    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
+}
+
+
+// SAFE OVERLAY (DOES NOT BREAK TILE MODES)
+Item {
+    anchors.fill: parent
+    z: 999
+
+    Label {
+        text:
+            (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
+            (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
+            (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
+
+        font.pixelSize: 16
+        color: Theme.color_font_primary
+
+        anchors {
+            horizontalCenter: parent.horizontalCenter
+            bottom: parent.bottom
+            bottomMargin: Theme.geometry_baseline_spacing
+        }
+
+        visible: root.inputOperational &&
+                 root.input &&
+                 root.input.connected
+    }
+}
+//end edit//
+
+	onClicked: {
+		const inputServiceUid = BackendConnection.serviceUidFromName(root.inputInfo.serviceName, root.inputInfo.deviceInstance)
+		if (root.inputInfo.serviceType === "acsystem") {
+			Global.pageManager.pushPage("/pages/settings/devicelist/rs/PageRsSystem.qml",
+					{ "bindPrefix": inputServiceUid })
+		} else if (root.inputInfo.serviceType === "vebus") {
+			Global.pageManager.pushPage( "/pages/vebusdevice/PageVeBus.qml", {
+				"bindPrefix": inputServiceUid
+			})
+		} else if (root.inputInfo.serviceType === "genset") {
+			Global.pageManager.pushPage( "/pages/settings/devicelist/PageGenset.qml", {
+				"bindPrefix": inputServiceUid
+			})
+		} else {
+			// Assume this is on a generic AC input
+			Global.pageManager.pushPage("/pages/settings/devicelist/ac-in/PageAcIn.qml", {
+				"bindPrefix": inputServiceUid
+			})
+		}
+	}
+
+	Loader {
+		id: sideGaugeLoader
+
+		anchors {
+			top: parent.top
+			bottom: parent.bottom
+			right: parent.right
+			margins: Theme.geometry_overviewPage_widget_sideGauge_margins
+		}
+		active: root.inputOperational && root.size >= VenusOS.OverviewWidget_Size_M
+		sourceComponent: ThreePhaseBarGauge {
+			valueType: VenusOS.Gauges_ValueType_NeutralPercentage
+			phaseModel: root.input.phases
+			minimumValue: root.inputInfo?.minimumCurrent ?? NaN
+			maximumValue: root.inputInfo?.maximumCurrent ?? NaN
+			inputMode: true
+			animationEnabled: root.animationEnabled
+			inOverviewWidget: true
+		}
+	}
+
+	Label {
+		anchors {
+			top: root.extraContent.top
+			topMargin: Theme.geometry_overviewPage_widget_extraContent_topMargin
+			left: root.extraContent.left
+			leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+			right: root.extraContent.right
+			rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+		}
+		elide: Text.ElideRight
+		text: root.inputInfo && root.inputInfo.source === VenusOS.AcInputs_InputSource_Generator
+				? CommonWords.stopped
+				: CommonWords.disconnected
+		visible: !root.inputOperational
+	}
+
+	AcInputDirectionIcon {
+		id: acInputDirectionIcon
+		parent: root.quantityLabel
+		anchors.verticalCenter: parent.verticalCenter
+		input: root.input
+	}
+}
+
+EOF
+
 
 
 	echo "AC Input installed"
@@ -1262,54 +1351,102 @@ else
 	cd "$WIDGETS"
 
 
-	patch -N --forward AcLoadsWidget.qml <<'PATCH'
+	cat > "$ACLOADS" <<'EOF'
+/*
+** Copyright (C) 2023 Victron Energy B.V.
+** See LICENSE.txt for license information.
+*/
 
---- AcLoadsWidget.qml
-+++ AcLoadsWidget.qml
+import QtQuick
+import Victron.VenusOS
 
-@@ -20,6 +20,47 @@
- 	type: VenusOS.OverviewWidget_Type_AcLoads
- 	quantityLabel.dataObject: root.measurements
- 	phaseCount: root.measurements.phases.count
+AcWidget {
+	id: root
 
-+	// VENUS_MOD_AC_LOADS
-+
-+	VeQuickItem {
-+		id: acVoltage
-+		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
-+	}
-+
-+	VeQuickItem {
-+		id: acCurrent
-+		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/I"
-+	}
-+
-+	VeQuickItem {
-+		id: acFrequency
-+		uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
-+	}
-+
-+	Label {
-+		text:
-+			(acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
-+			(acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
-+			(acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
-+
-+		font.pixelSize: 18
-+		color: Theme.color_font_primary
-+
-+		anchors {
-+			bottom: parent.bottom
-+			horizontalCenter: parent.horizontalCenter
-+			bottomMargin: Theme.geometry_baseline_spacing
-+		}
-+
-+		visible: root.size >= VenusOS.OverviewWidget_Size_L &&
-+		         acVoltage.valid &&
-+		         acVoltage.value >= 10
-+	}
+	readonly property ObjectAcConnection measurements: Global.system.showInputLoads
+			? Global.system.load.acIn
+			: Global.system.load.ac
 
-PATCH
+	//% "AC Loads"
+	title: qsTrId("overview_widget_acloads_title")
+	icon.source: "qrc:/images/acloads.svg"
+	type: VenusOS.OverviewWidget_Type_AcLoads
+	quantityLabel.dataObject: root.measurements
+	phaseCount: root.measurements.phases.count
+
+//start edit//
+////////////////////////////////////////////////////////////
+
+// --- LIVE AC VOLTAGE, CURRENT, FREQUENCY ---
+VeQuickItem {
+    id: acVoltage
+    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
+}
+VeQuickItem {
+    id: acCurrent
+    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/I"
+}
+VeQuickItem {
+    id: acFrequency
+    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
+}
+
+Label {
+    text: (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
+          (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
+          (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
+
+    font.pixelSize: 18
+    color: Theme.color_font_primary
+    anchors {
+        bottom: parent.bottom
+        horizontalCenter: parent.horizontalCenter
+        bottomMargin: Theme.geometry_baseline_spacing
+    }
+
+    visible: root.size >= VenusOS.OverviewWidget_Size_L &&
+             acVoltage.valid &&
+             acVoltage.value >= 10
+}
+//end edit//
+	extraContentLoader.sourceComponent: ThreePhaseDisplay {
+		model: root.measurements.phases
+		widgetSize: root.size
+		valueType: VenusOS.Gauges_ValueType_RisingPercentage
+		maximumValue: Global.system.load.maximumAcCurrent
+	}
+	extraContentLoader.active: root.phaseCount > 1 || root.measurements.l2AndL1OutSummed
+
+	// AC meters with Position=1 (AC input) are considered as "AC Loads", so they are
+	// accessible from this AC Loads widget.
+	// For 3-phase systems, the drilldown is always enabled.
+	// For 1-phase systems, only enable the drilldown if there are devices to be shown.
+	enabled: root.measurements.phaseCount > 1 || acLoadDevices.count > 0
+
+	onClicked: {
+		Global.pageManager.pushPage("/pages/loads/AcLoadListPage.qml", {
+			title: root.title,
+			measurements: root.measurements,
+			model: acLoadDevices,
+		})
+	}
+
+	FilteredDeviceModel {
+		id: acLoadDevices
+		serviceTypes: ["acload", "evcharger", "heatpump"]
+		childFilterIds: Global.system.showInputLoads
+				? { "acload": ["Position"], "evcharger": ["Position"], "heatpump": ["Position"] }
+				: {}
+		childFilterFunction: (device, childItems) => {
+			// If a service does not have a /Position value, assume it is in the "input" position.
+			const pos = childItems["Position"]
+			return !pos || pos.value === undefined || pos.value === VenusOS.AcPosition_AcInput
+		}
+	 }
+}
+
+EOF
+
 
 
 	echo "AC Loads installed"
