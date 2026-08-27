@@ -876,8 +876,7 @@ Row {
     VeQuickItem { id: externalTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_2/Temperature" }
     VeQuickItem { id: fridgeTemp;   uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_1/Temperature" }
     VeQuickItem { id: hotWaterTemp; uid: "dbus/com.victronenergy.temperature.adc_builtin_temp_0/Temperature" }
-    VeQuickItem { id: waterLevel;   uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Level" }
-    VeQuickItem { id: waterCapacity; uid: "dbus/com.victronenergy.tank.adc_gxtank_HQ2233VFF4U_0/Capacity" }
+	VeQuickItem { id: waterRemaining; uid: "dbus/com.victronenergy.tank.mopeka_df4fd70d0f62/Remaining" }
     VeQuickItem { id: themeMode;     uid: "dbus/com.victronenergy.settings/Settings/Gui/ColorScheme" }
 
     // — Internal Temp —
@@ -964,15 +963,9 @@ Row {
                 : "file:///data/custom-icons/water.svg"
         }
 Label {
-    text:
-        (waterLevel.valid
-            ? (waterCapacity.valid
-                ? ((waterLevel.value / 100.0) * waterCapacity.value * 1000).toFixed(0) + "L"
-                : waterLevel.value.toFixed(0) + "%")
-            : "")
-        + (hotWaterTemp.valid
-            ? (waterLevel.valid ? "  " : "") + hotWaterTemp.value.toFixed(1) + "°C"
-            : "")
+    text: waterRemaining.valid
+        ? (waterRemaining.value * 1000).toFixed(0) + "L"
+        : ""
     font.bold: true
     font.pixelSize: 18
 }
