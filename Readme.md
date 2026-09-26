@@ -220,21 +220,6 @@ Coming soon.
 - Live Sensor Status Bar
 - AC Widget Enhancements
 
----
-
-# 🛣 Roadmap
-
-Future modules planned include:
-
-- GPS information
-- Weather integration
-- Generator enhancements
-- Battery statistics
-- System diagnostics
-- Custom dashboard widgets
-- Additional status bar modules
-
-Suggestions are welcome.
 
 ---
 
