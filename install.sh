@@ -544,289 +544,212 @@ if ac_input_installed; then
 
 else
 
-	backup_file "$ACINPUT" "ac"
+    backup_file "$ACINPUT" "ac"
 
-	cd "$WIDGETS"
+    python3 - "$ACINPUT" <<'PY'
+import sys
 
+file = sys.argv[1]
 
-	cat > "$ACINPUT" <<'EOF'
-/*
-** Copyright (C) 2023 Victron Energy B.V.
-** See LICENSE.txt for license information.
-*/
+with open(file, "r") as f:
+    data = f.read()
 
-import QtQuick
-import Victron.VenusOS
+# Original Venus OS 3.8 AC Input Loader
+marker = '''		Loader {
+			id: sideGaugeLoader
 
-AcWidget {
-	id: root
-
-	readonly property AcInputSystemInfo inputInfo: input?.inputInfo ?? null
-	property AcInput input
-	readonly property bool inputOperational: input && input.operational
-
-	title: !!inputInfo ? Global.acInputs.sourceToText(inputInfo.source) : ""
-	icon.source: !!inputInfo ? Global.acInputs.sourceIcon(inputInfo.source) : ""
-	rightPadding: sideGaugeLoader.active ? Theme.geometry_overviewPage_widget_sideGauge_margins : 0
-	quantityLabel.sourceType: VenusOS.ElectricalQuantity_Source_AcInputOnly
-	quantityLabel.dataObject: inputOperational ? input : null
-	quantityLabel.leftPadding: acInputDirectionIcon.visible ? (acInputDirectionIcon.width + Theme.geometry_acInputDirectionIcon_rightMargin) : 0
-	phaseCount: inputOperational ? input.phases.count : 0
-	enabled: !!inputInfo
-	extraContentLoader.sourceComponent: ThreePhaseDisplay {
-		width: parent.width
-		model: root.input.phases
-		widgetSize: root.size
-		inputMode: true
-	}
-
-// AC INPUT CURRENT (real system value)
-VeQuickItem {
-    id: acCurrent
-    uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
-}
-
-// VOLTAGE fallback (VE.Bus inverter output)
-VeQuickItem {
-    id: acVoltage
-    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
-}
-
-// FREQUENCY (VE.Bus output)
-VeQuickItem {
-    id: acFrequency
-    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
-}
-
-
-// SAFE OVERLAY (DOES NOT BREAK TILE MODES)
-Item {
-    anchors.fill: parent
-    z: 999
-
-    Label {
-        text:
-            (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
-            (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
-            (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
-
-        font.pixelSize: 16
-        color: Theme.color_font_primary
-
-        anchors {
-            horizontalCenter: parent.horizontalCenter
-            bottom: parent.bottom
-            bottomMargin: Theme.geometry_baseline_spacing
-        }
-
-        visible: root.inputOperational &&
-                 root.input &&
-                 root.input.connected
-    }
-}
-//end edit//
-
-	onClicked: {
-		const inputServiceUid = BackendConnection.serviceUidFromName(root.inputInfo.serviceName, root.inputInfo.deviceInstance)
-		if (root.inputInfo.serviceType === "acsystem") {
-			Global.pageManager.pushPage("/pages/settings/devicelist/rs/PageRsSystem.qml",
-					{ "bindPrefix": inputServiceUid })
-		} else if (root.inputInfo.serviceType === "vebus") {
-			Global.pageManager.pushPage( "/pages/vebusdevice/PageVeBus.qml", {
-				"bindPrefix": inputServiceUid
-			})
-		} else if (root.inputInfo.serviceType === "genset") {
-			Global.pageManager.pushPage( "/pages/settings/devicelist/PageGenset.qml", {
-				"bindPrefix": inputServiceUid
-			})
-		} else {
-			// Assume this is on a generic AC input
-			Global.pageManager.pushPage("/pages/settings/devicelist/ac-in/PageAcIn.qml", {
-				"bindPrefix": inputServiceUid
-			})
+			anchors {
+				top: parent.top
+				bottom: parent.bottom
+				right: parent.right
+			}
+			active: root._showSideGauge
+			sourceComponent: ThreePhaseBarGauge {
+				valueType: VenusOS.Gauges_ValueType_NeutralPercentage
+				phaseModel: root.input.phases
+				minimumValue: root.inputInfo?.minimumCurrent ?? NaN
+				maximumValue: root.inputInfo?.maximumCurrent ?? NaN
+				inputMode: true
+				animationEnabled: root.animationEnabled
+				inOverviewWidget: true
+			}
 		}
-	}
+'''
 
-	Loader {
-		id: sideGaugeLoader
+# Our working AC Input live values block
+insert = '''		Item {
+			id: liveValuesArea
 
-		anchors {
-			top: parent.top
-			bottom: parent.bottom
-			right: parent.right
-			margins: Theme.geometry_overviewPage_widget_sideGauge_margins
+			width: contentLayout.width
+			height: contentLayout.height
+			anchors.left: parent.left
+			anchors.top: parent.top
+
+			Label {
+				id: acLiveLabel
+
+				anchors {
+					bottom: parent.bottom
+					horizontalCenter: parent.horizontalCenter
+					bottomMargin: Theme.geometry_baseline_spacing
+				}
+
+				text: (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
+				      (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
+				      (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
+
+				font.pixelSize: 22
+				color: Theme.color_font_primary
+
+				visible: root.size >= VenusOS.OverviewWidget_Size_M &&
+				         acVoltage.valid &&
+				         acVoltage.value >= 10
+
+				z: 100
+			}
 		}
-		active: root.inputOperational && root.size >= VenusOS.OverviewWidget_Size_M
-		sourceComponent: ThreePhaseBarGauge {
-			valueType: VenusOS.Gauges_ValueType_NeutralPercentage
-			phaseModel: root.input.phases
-			minimumValue: root.inputInfo?.minimumCurrent ?? NaN
-			maximumValue: root.inputInfo?.maximumCurrent ?? NaN
-			inputMode: true
-			animationEnabled: root.animationEnabled
-			inOverviewWidget: true
+
+		VeQuickItem {
+			id: acVoltage
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
 		}
-	}
 
-	Label {
-		anchors {
-			top: root.extraContent.top
-			topMargin: Theme.geometry_overviewPage_widget_extraContent_topMargin
-			left: root.extraContent.left
-			leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-			right: root.extraContent.right
-			rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
+		VeQuickItem {
+			id: acCurrent
+			uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
 		}
-		elide: Text.ElideRight
-		text: root.inputInfo && root.inputInfo.source === VenusOS.AcInputs_InputSource_Generator
-				? CommonWords.stopped
-				: CommonWords.disconnected
-		visible: !root.inputOperational
-	}
 
-	AcInputDirectionIcon {
-		id: acInputDirectionIcon
-		parent: root.quantityLabel
-		anchors.verticalCenter: parent.verticalCenter
-		input: root.input
-	}
-}
+		VeQuickItem {
+			id: acFrequency
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
+		}
+'''
 
-EOF
+if marker not in data:
+    print("❌ Could not find original Venus OS 3.8 AC Input Loader")
+    print("❌ File was NOT modified")
+    sys.exit(1)
 
+data = data.replace(marker, marker + "\n" + insert, 1)
 
+with open(file, "w") as f:
+    f.write(data)
 
-	echo "AC Input installed"
+print("✅ AC Input Widget modified")
+PY
+
+    echo "AC Input installed"
+
+	NEED_RESTART=1
+
 
 fi
 
 
 
-# ----------------------------
+# ============================================================
 # AC Loads Widget
-# ----------------------------
-
+# ============================================================
 
 if ac_loads_installed; then
 
-	echo "AC Loads mod already installed"
+    echo "AC Loads mod already installed"
 
 else
 
-	backup_file "$ACLOADS" "ac"
+    backup_file "$ACLOADS" "ac"
 
-	cd "$WIDGETS"
+    python3 - "$ACLOADS" <<'PY'
+import sys
 
+file = sys.argv[1]
 
-	cat > "$ACLOADS" <<'EOF'
-/*
-** Copyright (C) 2023 Victron Energy B.V.
-** See LICENSE.txt for license information.
-*/
+with open(file, "r") as f:
+    data = f.read()
 
-import QtQuick
-import Victron.VenusOS
-
-AcWidget {
-	id: root
-
-	readonly property ObjectAcConnection measurements: Global.system.showInputLoads
-			? Global.system.load.acIn
-			: Global.system.load.ac
-
-	//% "AC Loads"
-	title: qsTrId("overview_widget_acloads_title")
-	icon.source: "qrc:/images/acloads.svg"
-	type: VenusOS.OverviewWidget_Type_AcLoads
-	quantityLabel.dataObject: root.measurements
-	phaseCount: root.measurements.phases.count
-
-//start edit//
-////////////////////////////////////////////////////////////
-
-// --- LIVE AC VOLTAGE, CURRENT, FREQUENCY ---
-VeQuickItem {
-    id: acVoltage
-    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
-}
-VeQuickItem {
-    id: acCurrent
-    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/I"
-}
-VeQuickItem {
-    id: acFrequency
-    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
-}
-
-Label {
-    text: (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
-          (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
-          (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
-
-    font.pixelSize: 18
-    color: Theme.color_font_primary
-    anchors {
-        bottom: parent.bottom
-        horizontalCenter: parent.horizontalCenter
-        bottomMargin: Theme.geometry_baseline_spacing
-    }
-
-    visible: root.size >= VenusOS.OverviewWidget_Size_L &&
-             acVoltage.valid &&
-             acVoltage.value >= 10
-}
-//end edit//
-	extraContentLoader.sourceComponent: ThreePhaseDisplay {
-		model: root.measurements.phases
-		widgetSize: root.size
-		valueType: VenusOS.Gauges_ValueType_RisingPercentage
-		maximumValue: Global.system.load.maximumAcCurrent
+# Original Venus OS 3.8 contentItem block
+old = '''	contentItem: AcWidgetContent {
+		widget: root
+		iconSource: "qrc:/images/acloads.svg"
+		gaugeValueType: VenusOS.Gauges_ValueType_RisingPercentage
+		gaugeMaximumValue: Global.system.load.maximumAcCurrent
 	}
-	extraContentLoader.active: root.phaseCount > 1 || root.measurements.l2AndL1OutSummed
+'''
 
-	// AC meters with Position=1 (AC input) are considered as "AC Loads", so they are
-	// accessible from this AC Loads widget.
-	// For 3-phase systems, the drilldown is always enabled.
-	// For 1-phase systems, only enable the drilldown if there are devices to be shown.
-	enabled: root.measurements.phaseCount > 1 || acLoadDevices.count > 0
+# Replace only the contentItem with our modified version
+new = '''	contentItem: Item {
+		id: contentRoot
+		anchors.fill: parent
 
-	onClicked: {
-		Global.pageManager.pushPage("/pages/loads/AcLoadListPage.qml", {
-			title: root.title,
-			measurements: root.measurements,
-			model: acLoadDevices,
-		})
-	}
+		AcWidgetContent {
+			id: acContent
+			anchors.fill: parent
 
-	FilteredDeviceModel {
-		id: acLoadDevices
-		serviceTypes: ["acload", "evcharger", "heatpump"]
-		childFilterIds: Global.system.showInputLoads
-				? { "acload": ["Position"], "evcharger": ["Position"], "heatpump": ["Position"] }
-				: {}
-		childFilterFunction: (device, childItems) => {
-			// If a service does not have a /Position value, assume it is in the "input" position.
-			const pos = childItems["Position"]
-			return !pos || pos.value === undefined || pos.value === VenusOS.AcPosition_AcInput
+			widget: root
+			iconSource: "qrc:/images/acloads.svg"
+			gaugeValueType: VenusOS.Gauges_ValueType_RisingPercentage
+			gaugeMaximumValue: Global.system.load.maximumAcCurrent
 		}
-	 }
-}
 
-EOF
+		VeQuickItem {
+			id: acVoltage
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
+		}
 
+		VeQuickItem {
+			id: acCurrent
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/I"
+		}
 
+		VeQuickItem {
+			id: acFrequency
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
+		}
 
-	echo "AC Loads installed"
+		Label {
+			id: acLiveLabel
+
+			anchors {
+				bottom: parent.bottom
+				horizontalCenter: parent.horizontalCenter
+				bottomMargin: Theme.geometry_baseline_spacing
+			}
+
+			text: (acVoltage.valid ? acVoltage.value.toFixed(0) + " V" : "--- V") + "  " +
+			      (acCurrent.valid ? acCurrent.value.toFixed(1) + " A" : "--.- A") + "  " +
+			      (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
+
+			font.pixelSize: 22
+			color: Theme.color_font_primary
+
+			visible: root.size >= VenusOS.OverviewWidget_Size_M &&
+			         acVoltage.valid &&
+			         acVoltage.value >= 10
+
+			z: 100
+		}
+	}
+'''
+
+if old not in data:
+    print("❌ Could not find original Venus OS 3.8 AC Loads contentItem")
+    print("❌ File was NOT modified")
+    sys.exit(1)
+
+data = data.replace(old, new, 1)
+
+with open(file, "w") as f:
+    f.write(data)
+
+print("✅ AC Loads Widget modified")
+PY
+
+    NEED_RESTART=1
+
+    echo "AC Loads installed"
 
 fi
-
-
-NEED_RESTART=1
-
-echo "AC enhancements complete"
-
 }
-
 
 
 # ============================================================
