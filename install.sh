@@ -14,6 +14,7 @@ ORIG_GUI="/opt/victronenergy/gui-v2"
 OVERLAY="/data/apps/overlay-fs/data/gui-v2/upper"
 
 NEED_RESTART=0
+NEED_SYSTEMCALC_RESTART=0
 
 # ============================================================
 # Custom Status Bar Icons
@@ -87,7 +88,7 @@ WIDGETS="$COMPONENTS/widgets"
 
 STATUSBAR_LANDSCAPE="$COMPONENTS/StatusBar_Landscape.qml"
 
-BATTERY="$WIDGETS/BatteryWidget.qml"
+SYSTEMCALC="/opt/victronenergy/dbus-systemcalc-py/dbus_systemcalc.py"
 
 ACINPUT="$WIDGETS/AcInputWidget.qml"
 ACLOADS="$WIDGETS/AcLoadsWidget.qml"
@@ -104,7 +105,7 @@ echo
 # Verify files exist
 # ============================================================
 
-for FILE in "$STATUSBAR_LANDSCAPE" "$BATTERY" "$ACINPUT" "$ACLOADS"
+for FILE in "$STATUSBAR_LANDSCAPE" "$SYSTEMCALC" "$ACINPUT" "$ACLOADS"
 do
     if [ ! -f "$FILE" ]; then
         echo "❌ Missing file:"
@@ -187,7 +188,7 @@ restore_file()
 
 battery_installed()
 {
-    compgen -G "$BATTERY.bak-battery-*" > /dev/null
+    compgen -G "$SYSTEMCALC.bak-ttg-*" > /dev/null
 }
 
 
@@ -216,386 +217,70 @@ ac_loads_installed()
 
 install_battery()
 {
-
-if battery_installed; then
+    if battery_installed; then
+        echo
+        echo "⚠ Battery Time Estimator is already installed."
+        echo
+        return 1
+    fi
 
     echo
-    echo "⚠ Battery mod backup detected!"
-    echo "A previous modification exists."
-    echo "Restore the original before installing again."
+    echo "Installing Battery Time Estimator..."
     echo
 
-    return 1
+    backup_file "$SYSTEMCALC" "ttg"
 
-fi
+    python3 - "$SYSTEMCALC" <<'PY'
+import sys
 
+file = sys.argv[1]
 
-echo "Installing Battery Time Estimator"
+with open(file, "r") as f:
+    data = f.read()
 
-backup_file "$BATTERY" "battery"
+old = "\t\t\tnewvalues['/Dc/Battery/TimeToGo'] = self._dbusmonitor.get_value(self._batteryservice,'/TimeToGo')"
 
-cd "$WIDGETS"
+new = """\t\t\tttg = 0
+\t\t\tcapacity = self._dbusmonitor.get_value(self._batteryservice, '/Capacity')
+\t\t\tinstalled = self._dbusmonitor.get_value(self._batteryservice, '/InstalledCapacity')
+\t\t\tcurrent = self._dbusmonitor.get_value(self._batteryservice, '/Dc/0/Current')
 
+\t\t\tif capacity is not None and installed is not None and current is not None and current > 0.1:
+\t\t\t\tttg = max(0, (capacity - installed * 0.20) / current * 3600)
 
-cat > "$BATTERY" <<'EOF'
-/*
-** Copyright (C) 2023 Victron Energy B.V.
-** See LICENSE.txt for license information.
-*/
+\t\t\tnewvalues['/Dc/Battery/TimeToGo'] = ttg"""
 
-import QtQuick
-import Victron.VenusOS
-import QtQuick.Controls.impl as CP
+if old not in data:
+    print("❌ Could not find original TimeToGo line")
+    sys.exit(1)
 
-OverviewWidget {
-	id: root
+data = data.replace(old, new, 1)
 
-	readonly property bool preferRenewable: preferRenewableEnergy.valid
-	readonly property bool preferRenewableOverride: preferRenewableEnergy.value === 0 || preferRenewableEnergy.value === 2
-	readonly property bool preferRenewableOverrideGenset: remoteGeneratorSelected.value === 1 || Global.acInputs.activeInSource === VenusOS.AcInputs_InputSource_Generator
+with open(file, "w") as f:
+    f.write(data)
 
-	onClicked: {
-		// If com.victronenergy.system/Batteries has only one battery, then show the device
-		// settings for that battery; otherwise, show the full battery list using BatteryListPage.
-		if (batteries.value.length === 1) {
-			const batteryUids = batteries.value.map((info) => BackendConnection.serviceUidFromName(info.id, info.instance))
+print("✅ Battery Time Estimator code installed")
+PY
 
-			// Show the vebus page if the battery is from a vebus service.
-			if (BackendConnection.serviceTypeFromUid(batteryUids[0]) === "vebus") {
-				Global.pageManager.pushPage("/pages/vebusdevice/PageVeBus.qml", {
-					"bindPrefix": batteryUids[0],
-				})
-			} else {
-				// Assume this is a battery service
-				Global.pageManager.pushPage("/pages/settings/devicelist/battery/PageBattery.qml", {
-					"bindPrefix": batteryUids[0]
-				})
-			}
-		} else {
-			Global.pageManager.pushPage("/pages/battery/BatteryListPage.qml")
-		}
-	}
+    python3 -c "compile(open('$SYSTEMCALC').read(), '$SYSTEMCALC', 'exec')"
 
-	readonly property var batteryData: Global.system.battery
-	readonly property real batterySoc: batteryData.stateOfCharge || 0
+    echo "✅ Systemcalc syntax OK"
 
-	readonly property int _normalizedStateOfCharge: Math.round(batteryData.stateOfCharge || 0)
-	readonly property bool _animationReady: animationEnabled && !isNaN(batteryData.stateOfCharge)
-
-	// Calculate whether voltage, current and power quantities fit on the footer together, if not use smaller font.
-	// Discharging battery has negative amperes and its not unusual for the watts to be in the 1k+ range.
-	readonly property bool _useSmallFont: !quantityLabelFits(batteryVoltageDisplay) || !quantityLabelFits(batteryPowerDisplay)
-
-	function quantityLabelFits(label) {
-		return root.width/2 - 2*Theme.geometry_overviewPage_widget_content_horizontalMargin
-			> quantityLabelWidth(batteryCurrentDisplay.valueText, batteryCurrentDisplay.unitText)/2
-			+ quantityLabelWidth(label.valueText, label.unitText)
-	}
-
-	function quantityLabelWidth(valueText, unitText){
-		const valueTextRect = quantityLabelFont.tightBoundingRect(valueText)
-		return quantityLabelFont.font, (valueTextRect.x + valueTextRect.width
-										+ Theme.geometry_quantityLabel_spacing
-										+ quantityLabelFont.advanceWidth(unitText))
-	}
-
-	FontMetrics {
-		id: quantityLabelFont
-		font.pixelSize: Theme.font_size_body2
-		font.family: Global.quantityFontFamily
-	}
-
-	VeQuickItem {
-		id: batteries
-		uid: Global.system.serviceUid + "/Batteries"
-	}
-
-	VeQuickItem {
-		id: preferRenewableEnergy
-
-		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Dc/0/PreferRenewableEnergy" : ""
-	}
-
-	VeQuickItem {
-		id: remoteGeneratorSelected
-
-		uid: Global.system.veBus.serviceUid ? Global.system.veBus.serviceUid + "/Ac/State/RemoteGeneratorSelected" : ""
-	}
-	
-	VeQuickItem {
-		id: batteryCapacity
-
-		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/Capacity"
-	}
-	
-	VeQuickItem { 
-		id: batteryInstalledCapacity 
-		
-		uid: "dbus/com.victronenergy.battery.socketcan_vecan0/InstalledCapacity" 
-	}
-
-	title: CommonWords.battery
-	icon.source: batteryData.icon
-	type: VenusOS.OverviewWidget_Type_Battery
-	enabled: batteries.valid
-
-	quantityLabel.value: batteryData.stateOfCharge
-	quantityLabel.unit: VenusOS.Units_Percentage
-	quantityLabel.unitColor: Theme.color_overviewPage_widget_battery_font_secondary
-
-	color: "transparent"
-
-	BarGauge {
-		id: animationRect
-		z: -1
-
-		anchors {
-			fill: parent
-			margins: root.border.width
-		}
-
-		animationEnabled: root.animationEnabled // Note: don't use _animationReady here.
-		value: _normalizedStateOfCharge/100
-		backgroundColor: Theme.color_overviewPage_widget_background
-		foregroundColor: Theme.color_overviewPage_widget_battery_background
-		radius: Theme.geometry_overviewPage_widget_battery_background_radius
-
-		Item {
-			id: animationClip
-
-			width: parent.width
-			height: parent.height * (animationRect.value)
-			anchors.bottom: parent.bottom
-			visible: batteryData.mode === VenusOS.Battery_Mode_Charging && root._animationReady
-			clip: true
-			z: 6 // greater than the explicit z-order specified in BarGauge.
-
-			SequentialAnimation {
-				property bool startAnimation: root._animationReady
-				onStartAnimationChanged: if (startAnimation) start()
-				onStopped: if (startAnimation) start()
-
-				YAnimator {
-					target: gradient
-					from: animationClip.height
-					to: -gradient.height
-					duration: Theme.animation_overviewPage_widget_battery_animation_duration
-					easing.type: Easing.OutQuad
-				}
-
-				PauseAnimation {
-					duration: Theme.animation_overviewPage_widget_battery_animation_pause_duration
-				}
-			}
-
-			Rectangle {
-				id: gradient
-				width: parent.width
-				height: Theme.geometry_overviewPage_widget_battery_gradient_height
-				gradient: Gradient {
-					GradientStop {
-						position: 0.0
-						color: Qt.rgba(1,1,1,0.3)
-					}
-					GradientStop {
-						position: 0.3
-						color: Qt.rgba(1,1,1,0.15)
-					}
-					GradientStop {
-						position: 1.0
-						color: Qt.rgba(1,1,1,0.0)
-					}
-				}
-			}
-		}
-	}
-
-	QuantityLabel {
-		id: batteryTempDisplay
-
-		anchors {
-			top: parent.top
-			topMargin: root.verticalMargin
-			right: parent.right
-			rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-		}
-
-		value: batteryData.temperature
-		unit: Global.systemSettings.temperatureUnit
-		unitColor: Theme.color_overviewPage_widget_battery_font_secondary
-		font.pixelSize: Theme.font_size_body2
-		alignment: Qt.AlignRight
-		visible: !isNaN(batteryData.temperature)
-	}
-
-	extraContentChildren: [
-		Column {
-			anchors {
-				top: parent.top
-				left: parent.left
-				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-				right: parent.right
-				rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-			}
-			Label {
-				text: VenusOS.battery_modeToText(batteryData.mode)
-				font.pixelSize: Theme.font_size_body1
-				width: parent.width
-				elide: Text.ElideRight
-				color: Theme.color_overviewPage_widget_battery_font_secondary
-			}
-			
-			Label {
-				text: {
-					const remainingAh = batteryCapacity.value;
-					const fullAh = batteryInstalledCapacity.value;
-					const reserveAh = fullAh * 0.20;   // calculate runtime down to 20%
-
-					const current = batteryData.current;
-
-					// Charging
-					if (current > 0.1) {
-
-						// Last 1% is finishing/balancing stage, no useful time estimate
-						if (remainingAh >= fullAh * 0.99)
-							return "Finishing charge";
-
-						const chargeAh = fullAh - remainingAh;
-						const hours = chargeAh / current;
-						const seconds = hours * 3600;
-
-						return "Time to full " + Utils.secondsToString(seconds);
-					}
-
-					// Discharging
-					if (current < -0.1) {
-
-						// Warning below 25%
-						if (remainingAh <= fullAh * 0.25)
-							return "WARNING";
-
-						// Calculate remaining time down to 20%
-						const usableAh = remainingAh - reserveAh;
-						const hours = usableAh / Math.abs(current);
-						const seconds = hours * 3600;
-
-						return "Remaining " + Utils.secondsToString(seconds);
-					}
-
-					return "";
-				}
-
-				visible: true
-
-				color: batteryCapacity.value <= batteryInstalledCapacity.value * 0.30
-						? "red"
-						: batteryCapacity.value <= batteryInstalledCapacity.value * 0.35
-							? "orange"
-							: Theme.color_font_primary
-
-				width: parent.width
-				elide: Text.ElideRight
-				font.pixelSize: Theme.font_overviewPage_battery_timeToGo_pixelSize
-			}	
-		},
-
-		CP.ColorImage {
-			anchors {
-				left: parent.left
-				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-				bottom: batteryVoltageDisplay.top
-				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
-			}
-			fillMode: Image.PreserveAspectFit
-			color: Theme.color_font_primary
-			visible: root.preferRenewableOverride
-			source: root.preferRenewableOverrideGenset
-					? "qrc:/images/icon_charging_generator.svg"
-					: Global.acInputs.activeInSource === VenusOS.AcInputs_InputSource_Shore
-					  ? "qrc:/images/icon_charging_shore.svg"
-					  : "qrc:/images/icon_charging_grid.svg"
-		},
-
-		QuantityLabel {
-			id: batteryVoltageDisplay
-
-			anchors {
-				left: parent.left
-				leftMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-				bottom: parent.bottom
-				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
-			}
-
-			value: batteryData.voltage
-			unit: VenusOS.Units_Volt_DC
-			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
-			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
-			alignment: Qt.AlignLeft
-		},
-
-		QuantityLabel {
-			id: batteryCurrentDisplay
-
-			anchors {
-				horizontalCenter: parent.horizontalCenter
-				bottom: parent.bottom
-				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
-			}
-			value: batteryData.current
-			unit: VenusOS.Units_Amp
-			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
-			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
-		},
-
-		CP.ColorImage {
-			anchors {
-				bottom: batteryPowerDisplay.top
-				bottomMargin: Theme.geometry_overviewPage_batterywidget_renewable_icon_bottom_margin
-				right: parent.right
-				rightMargin: Theme.geometry_overviewPage_batterywidget_renewable_icon_right_margin
-			}
-
-			fillMode: Image.PreserveAspectFit
-			color: Theme.color_font_primary
-			visible: root.preferRenewable
-			source: "qrc:/images/icon_charging_renewables.svg"
-		},
-
-		QuantityLabel {
-			id: batteryPowerDisplay
-
-			anchors {
-				right: parent.right
-				rightMargin: Theme.geometry_overviewPage_widget_content_horizontalMargin
-				bottom: parent.bottom
-				bottomMargin: Theme.geometry_overviewPage_widget_battery_bottomRow_bottomMargin
-			}
-			value: batteryData.power
-			unit: VenusOS.Units_Watt
-			unitColor: Theme.color_overviewPage_widget_battery_font_secondary
-			font.pixelSize: root._useSmallFont ? Theme.font_size_body1 : Theme.font_size_body2
-			alignment: Qt.AlignRight
-		}
-	]
+    NEED_SYSTEMCALC_RESTART=1
 }
-
-EOF
-
-NEED_RESTART=1
-
-echo "Battery installed"
-}
-
 
 
 remove_battery()
 {
+    echo
+    echo "Removing Battery Time Estimator..."
+    echo
 
-echo "Removing Battery Time Estimator"
+    restore_file "$SYSTEMCALC" "ttg"
 
-restore_file "$BATTERY" "battery"
-
+    NEED_SYSTEMCALC_RESTART=1
 }
+
 # ============================================================
 # Live Sensor Status Bar Mod
 # ============================================================
@@ -1294,15 +979,15 @@ esac
 # ============================================================
 
 
+if [ "$NEED_SYSTEMCALC_RESTART" = "1" ]; then
+    echo "Restarting systemcalc..."
+    svc -t /service/dbus-systemcalc-py
+fi
+
 if [ "$NEED_RESTART" = "1" ]; then
-
-	echo
-	echo "Restarting Venus GUI..."
-
-	sleep 2
-
-	svc -t /service/start-gui
-
+    echo "Restarting Venus GUI..."
+    sleep 2
+    svc -t /service/start-gui
 fi
 
 
