@@ -240,13 +240,19 @@ with open(file, "r") as f:
 
 old = "\t\t\tnewvalues['/Dc/Battery/TimeToGo'] = self._dbusmonitor.get_value(self._batteryservice,'/TimeToGo')"
 
-new = """\t\t\tttg = 0
-\t\t\tcapacity = self._dbusmonitor.get_value(self._batteryservice, '/Capacity')
-\t\t\tinstalled = self._dbusmonitor.get_value(self._batteryservice, '/InstalledCapacity')
-\t\t\tcurrent = self._dbusmonitor.get_value(self._batteryservice, '/Dc/0/Current')
+new = """\t\t\tttg = self._dbusmonitor.get_value(self._batteryservice, '/TimeToGo')
+\t\t\tif ttg is None:
+\t\t\t\tcapacity = self._dbusmonitor.get_value(self._batteryservice, '/Capacity')
+\t\t\t\tinstalled = self._dbusmonitor.get_value(self._batteryservice, '/InstalledCapacity')
+\t\t\t\tcurrent = self._dbusmonitor.get_value(self._batteryservice, '/Dc/0/Current')
 
-\t\t\tif capacity is not None and installed is not None and current is not None and current > 0.1:
-\t\t\t\tttg = max(0, (capacity - installed * 0.20) / current * 3600)
+\t\t\t\tif capacity is not None and installed is not None and current is not None and abs(current) > 0.1:
+\t\t\t\t\tif current < 0:
+\t\t\t\t\t\t# Discharging: time until 20%
+\t\t\t\t\t\tttg = max(0, (capacity - installed * 0.20) / abs(current) * 3600)
+\t\t\t\t\telse:
+\t\t\t\t\t\t# Charging: time until 100%
+\t\t\t\t\t\tttg = max(0, (installed - capacity) / current * 3600)
 
 \t\t\tnewvalues['/Dc/Battery/TimeToGo'] = ttg"""
 
