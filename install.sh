@@ -610,18 +610,18 @@ insert = '''		Item {
 		}
 
 		VeQuickItem {
-			id: acVoltage
-			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
+		    id: acVoltage
+		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/V"
 		}
-
+		
 		VeQuickItem {
-			id: acCurrent
-			uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
+		    id: acCurrent
+		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/I"
 		}
-
+		
 		VeQuickItem {
-			id: acFrequency
-			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
+		    id: acFrequency
+		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/F"
 		}
 '''
 
