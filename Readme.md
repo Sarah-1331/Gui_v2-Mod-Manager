@@ -18,23 +18,36 @@ It automatically:
 
 ## 🔋 Battery Time Estimator
 
-Enhances the standard Battery Widget with intelligent runtime estimation.
 
-### Features
+Enhances the standard Venus OS Battery Widget with a live, calculated time estimate.
 
-- ✅ Time to Full while charging
-- ✅ Remaining Runtime while discharging
-- ✅ Runtime calculated to 20% State of Charge
-- ✅ Low battery warning below 25%
-- ✅ Uses live BMS values
-- ✅ No background services
-- ✅ No external scripts
+Features
 
-Uses native Venus OS D-Bus battery information including:
+* ✅ Time to Full while the battery is charging
+* ✅ Remaining Runtime while the battery is discharging
+* ✅ Runtime calculated down to 20% State of Charge
+* ✅ Uses the battery’s live State of Charge and current
+* ✅ Uses the configured battery capacity
+* ✅ Automatically calculates the estimated time from the current battery conditions
+* ✅ Displays the result directly in the standard Battery Widget
+* ✅ No background services
+* ✅ No external scripts
 
-- Battery Current
-- State of Charge
-- Installed Battery Capacity
+How It Works
+
+The module adds the required Time to Go calculation directly to the native Venus OS battery data flow.
+
+It uses the existing Venus OS D-Bus battery values for:
+
+* Battery Current
+* State of Charge (SOC)
+* Installed Battery Capacity
+
+The calculated value is then provided through the battery service’s:
+
+/Dc/Battery/TimeToGo
+
+This allows the standard Venus OS GUI to display the calculated battery time without requiring a separate application or background process.
 
 ---
 
