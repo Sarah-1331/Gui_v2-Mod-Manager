@@ -252,7 +252,13 @@ new = """\t\t\tttg = self._dbusmonitor.get_value(self._batteryservice, '/TimeToG
 \t\t\t\t\t\tttg = max(0, (capacity - installed * 0.20) / abs(current) * 3600)
 \t\t\t\t\telse:
 \t\t\t\t\t\t# Charging: time until 100%
-\t\t\t\t\t\tttg = max(0, (installed - capacity) / current * 3600)
+\t\t\t\t\t\tremaining_ah = installed - capacity
+
+\t\t\t\t\t\tif remaining_ah <= 5:
+\t\t\t\t\t\t\t# Final 5 Ah: allow TTG to disappear
+\t\t\t\t\t\t\tttg = 0
+\t\t\t\t\t\telse:
+\t\t\t\t\t\t\tttg = max(0, remaining_ah / current * 3600)
 
 \t\t\tnewvalues['/Dc/Battery/TimeToGo'] = ttg"""
 
@@ -610,18 +616,18 @@ insert = '''		Item {
 		}
 
 		VeQuickItem {
-		    id: acVoltage
-		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/V"
+			id: acVoltage
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/V"
 		}
-		
+
 		VeQuickItem {
-		    id: acCurrent
-		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/I"
+			id: acCurrent
+			uid: "dbus/com.victronenergy.system/Ac/Grid/L1/Current"
 		}
-		
+
 		VeQuickItem {
-		    id: acFrequency
-		    uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/ActiveIn/L1/F"
+			id: acFrequency
+			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
 		}
 '''
 
