@@ -18,36 +18,63 @@ It automatically:
 
 ## 🔋 Battery Time Estimator
 
+Enhances the standard Venus OS Battery Widget with a live, calculated battery time estimate.
 
-Enhances the standard Venus OS Battery Widget with a live, calculated time estimate.
+### ✨ Features
 
-Features
+* 🔋 **Uses the BMS's own Time to Go (TTG) when available**
+* 🧮 **Automatically calculates TTG when the BMS does not provide one**
+* ⚡ **Charging → estimates time remaining until 100%**
+* 🔻 **Discharging → estimates remaining runtime down to 20% State of Charge**
+* 📊 **Uses the battery's live State of Charge (SOC) and current**
+* 🔋 **Uses the configured Installed Battery Capacity**
+* ⏳ **Final 5 Ah of charging → TTG automatically disappears**
+* 🚫 **Missing capacity, installed capacity or current data → TTG remains unavailable rather than displaying an incorrect estimate**
+* 🔄 **No extra service or background process required**
+* 🖥️ **Displays the result directly through the standard Venus OS Battery Widget**
 
-* ✅ Time to Full while the battery is charging
-* ✅ Remaining Runtime while the battery is discharging
-* ✅ Runtime calculated down to 20% State of Charge
-* ✅ Uses the battery’s live State of Charge and current
-* ✅ Uses the configured battery capacity
-* ✅ Automatically calculates the estimated time from the current battery conditions
-* ✅ Displays the result directly in the standard Battery Widget
-* ✅ No background services
-* ✅ No external scripts
-
-How It Works
+### ⚙️ How It Works
 
 The module adds the required Time to Go calculation directly to the native Venus OS battery data flow.
 
-It uses the existing Venus OS D-Bus battery values for:
+It first checks whether the selected BMS or battery service already provides:
 
-* Battery Current
-* State of Charge (SOC)
-* Installed Battery Capacity
+`/TimeToGo`
 
-The calculated value is then provided through the battery service’s:
+If a value is available, the module **uses the BMS's own TTG unchanged**.
 
-/Dc/Battery/TimeToGo
+If the BMS does not provide a TTG value, the module automatically calculates one using the existing Venus OS D-Bus battery values for:
 
-This allows the standard Venus OS GUI to display the calculated battery time without requiring a separate application or background process.
+* 🔋 Battery Current
+* 📊 State of Charge (SOC)
+* 🔋 Installed Battery Capacity
+
+### ⚡ Charging
+
+When the battery is charging, the module calculates the estimated time remaining until the battery reaches **100%**.
+
+Once the battery is within the final **5 Ah** of its configured capacity, the TTG value is set to zero so that the standard Venus OS Battery Widget naturally stops displaying the time estimate.
+
+### 🔻 Discharging
+
+When the battery is discharging, the module calculates the estimated remaining runtime until the battery reaches **20% SOC**.
+
+This provides a more practical usable-runtime estimate rather than calculating all the way down to 0%.
+
+### 🚫 Missing Data
+
+If the BMS does not provide TTG and the required battery information is unavailable — such as missing capacity, installed capacity or current — the module does **not** attempt to guess the remaining time.
+
+Instead, TTG remains unavailable and the standard Venus OS GUI treats it as **not reported**.
+
+### 📡 Venus OS D-Bus
+
+The calculated value is provided through:
+
+`/Dc/Battery/TimeToGo`
+
+This allows the standard Venus OS GUI to display the calculated battery time without requiring a separate application, external script or background service.
+
 
 ---
 
