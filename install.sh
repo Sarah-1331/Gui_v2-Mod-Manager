@@ -595,8 +595,9 @@ insert = '''		Item {
 				id: acLiveLabel
 
 				anchors {
+					left: parent.left
+					right: parent.right
 					bottom: parent.bottom
-					horizontalCenter: parent.horizontalCenter
 					bottomMargin: Theme.geometry_baseline_spacing
 				}
 
@@ -605,10 +606,13 @@ insert = '''		Item {
 				      (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
 
 				font.pixelSize: 22
+				fontSizeMode: Text.Fit
+				minimumPixelSize: 10
+				horizontalAlignment: Text.AlignHCenter
+				elide: Text.ElideNone
 				color: Theme.color_font_primary
 
-				visible: root.size >= VenusOS.OverviewWidget_Size_M &&
-				         acVoltage.valid &&
+				visible: acVoltage.valid &&
 				         acVoltage.value >= 10
 
 				z: 100
@@ -630,7 +634,6 @@ insert = '''		Item {
 			uid: "dbus/com.victronenergy.vebus.ttyS4/Ac/Out/L1/F"
 		}
 '''
-
 if marker not in data:
     print("❌ Could not find original Venus OS 3.8 AC Input Loader")
     print("❌ File was NOT modified")
@@ -716,8 +719,9 @@ new = '''	contentItem: Item {
 			id: acLiveLabel
 
 			anchors {
+				left: parent.left
+				right: parent.right
 				bottom: parent.bottom
-				horizontalCenter: parent.horizontalCenter
 				bottomMargin: Theme.geometry_baseline_spacing
 			}
 
@@ -726,17 +730,19 @@ new = '''	contentItem: Item {
 			      (acFrequency.valid ? acFrequency.value.toFixed(1) + " Hz" : "--.- Hz")
 
 			font.pixelSize: 22
+			fontSizeMode: Text.Fit
+			minimumPixelSize: 10
+			horizontalAlignment: Text.AlignHCenter
+			elide: Text.ElideNone
 			color: Theme.color_font_primary
 
-			visible: root.size >= VenusOS.OverviewWidget_Size_M &&
-			         acVoltage.valid &&
+			visible: acVoltage.valid &&
 			         acVoltage.value >= 10
 
 			z: 100
 		}
 	}
 '''
-
 if old not in data:
     print("❌ Could not find original Venus OS 3.8 AC Loads contentItem")
     print("❌ File was NOT modified")
