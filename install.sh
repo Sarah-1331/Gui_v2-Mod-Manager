@@ -8,7 +8,7 @@
 
 set -e
 
-MOD_VERSION="1.1"
+MOD_VERSION="1.2"
 
 ORIG_GUI="/opt/victronenergy/gui-v2"
 OVERLAY="/data/apps/overlay-fs/data/gui-v2/upper"
@@ -92,7 +92,7 @@ SYSTEMCALC="/opt/victronenergy/dbus-systemcalc-py/dbus_systemcalc.py"
 
 ACINPUT="$WIDGETS/AcInputWidget.qml"
 ACLOADS="$WIDGETS/AcLoadsWidget.qml"
-
+SOLAR="$WIDGETS/SolarWidget.qml"
 
 echo
 echo "======================================"
@@ -105,7 +105,7 @@ echo
 # Verify files exist
 # ============================================================
 
-for FILE in "$STATUSBAR_LANDSCAPE" "$SYSTEMCALC" "$ACINPUT" "$ACLOADS"
+for FILE in "$STATUSBAR_LANDSCAPE" "$SYSTEMCALC" "$ACINPUT" "$ACLOADS" "$SOLAR"
 do
     if [ ! -f "$FILE" ]; then
         echo "❌ Missing file:"
@@ -207,6 +207,11 @@ ac_input_installed()
 ac_loads_installed()
 {
     compgen -G "$ACLOADS.bak-ac-*" > /dev/null
+}
+
+solar_installed()
+{
+    compgen -G "$SOLAR.bak-solar-*" > /dev/null
 }
 
 
@@ -510,7 +515,7 @@ remove_sensors()
 
 echo "Removing Live Sensor Status Bar"
 
-restore_file "$STATUSBAR" "sensors"
+restore_file "$STATUSBAR_LANDSCAPE" "sensors"
 
 remove_sensor_icons
 
@@ -765,6 +770,72 @@ fi
 
 
 # ============================================================
+# Solar Widget Size
+# ============================================================
+
+install_solar()
+{
+    if solar_installed; then
+
+        echo
+        echo "⚠ Solar Widget Size mod is already installed."
+        echo
+        return 1
+
+    fi
+
+    echo
+    echo "Installing Solar Widget Size mod..."
+    echo
+
+    backup_file "$SOLAR" "solar"
+
+    python3 - "$SOLAR" <<'PY'
+import sys
+
+file = sys.argv[1]
+
+with open(file, "r") as f:
+    data = f.read()
+
+old = '''\tpreferredSize: _showPhases || _canShowGraph
+\t\t\t? VenusOS.OverviewWidget_PreferredSize_PreferLarge
+\t\t\t: VenusOS.OverviewWidget_PreferredSize_Any
+'''
+
+new = '''\tpreferredSize: VenusOS.OverviewWidget_PreferredSize_Any
+'''
+
+if old not in data:
+    print("❌ Could not find original Solar preferredSize block")
+    print("❌ File was NOT modified")
+    sys.exit(1)
+
+data = data.replace(old, new, 1)
+
+with open(file, "w") as f:
+    f.write(data)
+
+print("✅ Solar Widget Size modified")
+PY
+
+    NEED_RESTART=1
+
+    echo "Solar Widget Size installed"
+}
+
+
+remove_solar()
+{
+    echo
+    echo "Removing Solar Widget Size mod..."
+    echo
+
+    restore_file "$SOLAR" "solar"
+}
+
+
+# ============================================================
 # Remove AC Enhancements
 # ============================================================
 
@@ -810,12 +881,19 @@ else
 	echo "3) AC Widget Enhancements        ❌ Not Installed"
 fi
 
+if solar_installed; then
+	echo "4) Smaller Solar Widget          ✅ Installed"
+else
+	echo "4) Smaller Solar Widget          ❌ Not Installed"
+fi
+
+
 
 echo
 echo "--------------------------------------"
-echo "4) Install All"
-echo "5) Remove All"
-echo "6) Exit"
+echo "5) Install All"
+echo "6) Remove All"
+echo "7) Exit"
 echo
 
 
@@ -871,15 +949,18 @@ case "$OPTION" in
 ;;
 
 
+
 4)
 
-	echo
-	echo "Installing all mods..."
-	echo
+	if solar_installed; then
 
-	install_battery
-	install_sensors
-	install_ac
+		remove_solar
+
+	else
+
+		install_solar
+
+	fi
 
 ;;
 
@@ -887,17 +968,70 @@ case "$OPTION" in
 5)
 
 	echo
-	echo "Removing all mods..."
+	echo "Installing all mods..."
 	echo
 
-	remove_battery
-	remove_sensors
-	remove_ac
+	if battery_installed; then
+		echo "Battery Time Estimator already installed - skipping"
+	else
+		install_battery
+	fi
+
+	if sensors_installed; then
+		echo "Live Sensor Status Bar already installed - skipping"
+	else
+		install_sensors
+	fi
+
+	if ac_input_installed || ac_loads_installed; then
+		echo "AC Widget Enhancements already installed - skipping"
+	else
+		install_ac
+	fi
+
+	if solar_installed; then
+		echo "Smaller Solar Widget already installed - skipping"
+	else
+		install_solar
+	fi
 
 ;;
 
 
 6)
+
+	echo
+	echo "Removing all mods..."
+	echo
+
+	if battery_installed; then
+		remove_battery
+	else
+		echo "Battery Time Estimator not installed - skipping"
+	fi
+
+	if sensors_installed; then
+		remove_sensors
+	else
+		echo "Live Sensor Status Bar not installed - skipping"
+	fi
+
+	if ac_input_installed || ac_loads_installed; then
+		remove_ac
+	else
+		echo "AC Widget Enhancements not installed - skipping"
+	fi
+
+	if solar_installed; then
+		remove_solar
+	else
+		echo "Smaller Solar Widget not installed - skipping"
+	fi
+
+;;
+
+
+7)
 
 	echo "Exit"
 	exit 0
