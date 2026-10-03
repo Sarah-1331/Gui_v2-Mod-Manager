@@ -6,11 +6,11 @@ The Mod Manager allows you to install, remove and manage custom GUI enhancements
 
 It automatically:
 
-- Detects Overlay-FS installations
-- Creates timestamped backups
-- Installs only the selected modifications
-- Allows each modification to be removed independently
-- Restarts the GUI automatically when required
+* Detects Overlay-FS installations
+* Creates timestamped backups
+* Installs only the selected modifications
+* Allows each modification to be removed independently
+* Restarts the GUI automatically when required
 
 ---
 
@@ -75,7 +75,6 @@ The calculated value is provided through:
 
 This allows the standard Venus OS GUI to display the calculated battery time without requiring a separate application, external script or background service.
 
-
 ---
 
 ## 🌡️ Live Sensor Status Bar
@@ -84,17 +83,17 @@ Adds live environmental information directly into the GUI v2 status bar.
 
 ### Features
 
-- ✅ Internal temperature
-- ✅ External temperature
-- ✅ Fridge temperature
-- ✅ Water tank level
-- ✅ Hot water temperature
-- ✅ Automatic light/dark theme icons
-- ✅ Native Venus OS D-Bus integration
+* ✅ Internal temperature
+* ✅ External temperature
+* ✅ Fridge temperature
+* ✅ Water tank level
+* ✅ Hot water temperature
+* ✅ Automatic light/dark theme icons
+* ✅ Native Venus OS D-Bus integration
 
 The installer automatically installs all required SVG icons into:
 
-```
+```text
 /data/custom-icons
 ```
 
@@ -110,12 +109,63 @@ Adds additional live AC information to the standard GUI widgets.
 
 ### Features
 
-- ✅ Live Voltage
-- ✅ Live Current
-- ✅ Live Frequency
-- ✅ Available on AC Input Widget
-- ✅ Available on AC Loads Widget
-- ✅ Uses native Venus OS D-Bus values
+* ✅ Live Voltage
+* ✅ Live Current
+* ✅ Live Frequency
+* ✅ Available on AC Input Widget
+* ✅ Available on AC Loads Widget
+* ✅ Uses native Venus OS D-Bus values
+
+The additional information is displayed directly within the existing Venus OS AC widgets without requiring a separate application.
+
+---
+
+## ☀️ Smaller Solar Widget
+
+Changes the Solar Widget's preferred size behaviour so that it can use the smaller widget footprint available in GUI v2.
+
+By default, the standard Venus OS Solar Widget can request a larger widget size depending on the connected solar equipment and available solar information.
+
+This modification changes the widget's preferred size to:
+
+```qml
+VenusOS.OverviewWidget_PreferredSize_Any
+```
+
+This allows the Solar Widget to occupy a smaller space when the Overview layout permits it.
+
+### 📐 Why Use This Mod?
+
+This modification is particularly useful on **5" Venus OS displays**, where available Overview screen space is limited.
+
+It is especially recommended when the system includes an **Orion device** alongside solar equipment and the Solar Widget takes priority for available widget space.
+
+On a smaller 5" display, the larger preferred Solar Widget can consume valuable Overview space and leave insufficient room for the enhanced **AC Input Widget**, including its additional Voltage, Current and Frequency information.
+
+Installing the **Smaller Solar Widget** module allows the Overview layout to make better use of the available screen area, helping the enhanced AC information remain visible without unnecessarily sacrificing the Solar Widget.
+
+### 📌 Recommended for
+
+The module is particularly useful when using:
+
+* 🖥️ **5" Venus OS displays**
+* ☀️ **Solar equipment**
+* ⚡ **Orion devices**
+* ⚡ **AC Widget Enhancements**
+
+For larger displays, the module is optional and can be installed if a more compact Solar Widget layout is preferred.
+
+### 🔄 Reversible
+
+The modification is fully managed by the Mod Manager.
+
+Before changing the Solar Widget, the installer creates a timestamped backup:
+
+```text
+SolarWidget.qml.bak-solar-YYYYMMDD-HHMMSS
+```
+
+Removing the module restores the previous Solar Widget automatically.
 
 ---
 
@@ -127,7 +177,7 @@ Priority order:
 
 ### Overlay Filesystem
 
-```
+```text
 /data/apps/overlay-fs/data/gui-v2/upper
 ```
 
@@ -137,7 +187,7 @@ Recommended for persistent modifications.
 
 ### Standard Venus OS
 
-```
+```text
 /opt/victronenergy/gui-v2
 ```
 
@@ -154,7 +204,7 @@ SSH into your GX device.
 Download the installer:
 
 ```bash
-wget https://raw.githubusercontent.com/Sarah-1331/Gui_v2-Mod-Manager/main/install.sh \-O /data/gui-mod-manager.sh
+wget https://raw.githubusercontent.com/Sarah-1331/Gui_v2-Mod-Manager/main/install.sh -O /data/gui-mod-manager.sh
 ```
 
 Make it executable:
@@ -177,28 +227,34 @@ The installer automatically detects installed modules.
 
 Example:
 
-```
+```text
 ======================================
  Venus OS GUI v2 Mod Manager
- Version 1.1
+ Version 1.2
 ======================================
 
-Installed Mods
+Installed Mods:
 
 1) Battery Time Estimator        ✅ Installed
 2) Live Sensor Status Bar        ❌ Not Installed
 3) AC Widget Enhancements        ✅ Installed
+4) Smaller Solar Widget          ❌ Not Installed
 
 --------------------------------------
-
-4) Install All
-5) Remove All
-6) Exit
+5) Install All
+6) Remove All
+7) Exit
 ```
 
 Selecting an installed module removes it.
 
 Selecting a missing module installs it.
+
+**Install All** installs only modules that are not already installed.
+
+**Remove All** removes only modules that are currently installed.
+
+This allows the Mod Manager to be safely run without unnecessarily reinstalling or removing existing modifications.
 
 ---
 
@@ -206,17 +262,21 @@ Selecting a missing module installs it.
 
 Before any modification is applied, a timestamped backup is created.
 
-Example:
+Examples:
 
-```
-BatteryWidget.qml.bak-battery-20260720-183000
+```text
+dbus_systemcalc.py.bak-ttg-20260720-183000
 
-StatusBar.qml.bak-sensors-20260720-183010
+StatusBar_Landscape.qml.bak-sensors-20260720-183010
 
 AcInputWidget.qml.bak-ac-20260720-183020
+
+AcLoadsWidget.qml.bak-ac-20260720-183025
+
+SolarWidget.qml.bak-solar-20260720-183030
 ```
 
-Backups are stored alongside the original files.
+Backups are stored alongside the modified files.
 
 Your original GUI files are never modified without first creating a backup.
 
@@ -228,9 +288,9 @@ Each module can be removed independently.
 
 Removing a module will:
 
-- Restore the latest backup
-- Remove any associated resources (such as SVG icons)
-- Restart the GUI
+* Restore the latest backup
+* Remove any associated resources, such as SVG icons
+* Restart the GUI when required
 
 No manual cleanup is required.
 
@@ -240,9 +300,9 @@ No manual cleanup is required.
 
 After a Venus OS update, modified GUI files may be replaced.
 
-If this happens simply run:
+If this happens, simply run:
 
-```
+```text
 /data/gui-mod-manager.sh
 ```
 
@@ -256,10 +316,9 @@ The installer will automatically create new backups before applying any modifica
 
 Coming soon.
 
-- Battery Widget
-- Live Sensor Status Bar
-- AC Widget Enhancements
-
+* 🔋 Battery Time Estimator
+* 🌡️ Live Sensor Status Bar
+* ⚡ AC Widget Enhancements
+* ☀️ Smaller Solar Widget
 
 ---
-
