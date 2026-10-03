@@ -92,7 +92,7 @@ SYSTEMCALC="/opt/victronenergy/dbus-systemcalc-py/dbus_systemcalc.py"
 
 ACINPUT="$WIDGETS/AcInputWidget.qml"
 ACLOADS="$WIDGETS/AcLoadsWidget.qml"
-SOLAR="$WIDGETS/SolarWidget.qml"
+SOLAR="$WIDGETS/SolarYieldWidget.qml"
 
 echo
 echo "======================================"
