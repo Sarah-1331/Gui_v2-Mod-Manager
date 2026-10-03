@@ -162,7 +162,7 @@ The modification is fully managed by the Mod Manager.
 Before changing the Solar Widget, the installer creates a timestamped backup:
 
 ```text
-SolarWidget.qml.bak-solar-YYYYMMDD-HHMMSS
+SolarYieldWidget.qml.bak-solar-YYYYMMDD-HHMMSS
 ```
 
 Removing the module restores the previous Solar Widget automatically.
